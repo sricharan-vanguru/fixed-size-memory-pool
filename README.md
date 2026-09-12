@@ -14,6 +14,9 @@ manual memory management, alignment, object lifetime, and cache behavior.
 - Exception-safe object construction: a throwing constructor returns its block
   to the pool
 - Ownership and block-boundary validation on deallocation
+- Optional block-state tracking and deterministic double-free detection
+- Optional memory poisoning, guard canaries, integrity validation, and leak callback
+- Optional allocation, peak-use, failure, and reserved-memory statistics
 - Copy and move disabled so the backing allocation cannot be invalidated
 
 The base implementation is intentionally not synchronized. A caller can give
@@ -34,6 +37,37 @@ contiguous backing allocation
 | free     | -> | free     | -> | in use   |    | free     | -> null
 +----------+    +----------+    +----------+    +----------+
 ```
+
+### Architecture
+
+The project uses a compiled allocator core with small public headers. Template
+object-lifetime helpers remain in the public header, while layout calculations,
+state tracking, canaries, poisoning, and statistics collection are private
+implementation modules.
+
+```text
+include/memory_pool/                 public API
+  fixed_size_memory_pool.hpp         allocator interface and templates
+  pool_options.hpp                   optional behavior configuration
+  pool_statistics.hpp                statistics result type
+  pool_errors.hpp                    allocator-specific exceptions
+
+src/                                 compiled implementation
+  fixed_size_memory_pool.cpp         storage and free-list coordination
+  detail/block_layout.*              alignment and overflow-safe layout
+  detail/diagnostic_state.*          block state and integrity checks
+  detail/memory_guard.*              poisoning and canaries
+  detail/statistics_tracker.*        optional counter updates
+
+tests/
+  fixed_size_memory_pool_tests.cpp   core behavior and object lifetime
+  diagnostics_tests.cpp              misuse and corruption detection
+  statistics_tests.cpp               counter behavior
+```
+
+Internal modules are not part of the supported public API. Applications should
+include headers only from `include/memory_pool` and link the `memory_pool` CMake
+target.
 
 ### Fragmentation
 
@@ -58,6 +92,60 @@ address. Over-aligned objects are supported when the pool is constructed with a
 sufficient alignment. Using 64-byte blocks does not automatically prevent false
 sharing if different threads mutate adjacent blocks; padding or ownership
 partitioning may still be needed.
+
+### Optional diagnostics
+
+The default options preserve the original compact behavior and allocate no
+per-block state metadata. Diagnostics can be enabled explicitly when developing
+or testing a caller:
+
+```cpp
+memory_pool::PoolOptions options{
+    .diagnostics = memory_pool::DiagnosticMode::enabled,
+    .poison_memory = true,
+    .guard_bytes = true,
+    .collect_statistics = true,
+};
+
+memory_pool::FixedSizeMemoryPool pool(
+    64, 1024, alignof(std::max_align_t), options);
+```
+
+Diagnostic mode tracks whether each block is free or allocated, which makes a
+double-free deterministic:
+
+```cpp
+void* block = pool.allocate();
+pool.deallocate(block);
+pool.deallocate(block); // throws memory_pool::DoubleFreeError
+```
+
+`validate_integrity()` performs an O(n) debug traversal that verifies free-list
+addresses, uniqueness, state, and the available-block count. `debug_dump()`
+prints block states to an output stream. These operations intentionally require
+diagnostic mode and are not part of the constant-time allocation path.
+
+Memory poisoning writes `0xCD` into allocated payloads and `0xDD` into released
+payloads. Guard mode reserves canaries immediately before and after each user
+payload and verifies them during deallocation. A changed canary throws
+`MemoryCorruptionError`, typically indicating an underflow or overflow.
+
+A non-throwing `leak_handler` callback may be supplied in `PoolOptions`. If
+diagnostics are enabled and blocks remain live when the pool is destroyed, the
+callback receives the outstanding block count. The callback must not access the
+pool being destroyed.
+
+Statistics are available through `statistics()`:
+
+```cpp
+const auto& statistics = pool.statistics();
+std::cout << statistics.peak_allocated << '\n';
+std::cout << statistics.failed_allocations << '\n';
+```
+
+All diagnostics are optional. Poisoning, guards, state tracking, statistics, and
+callbacks add storage or execution overhead and should be selected according to
+the workload.
 
 ## Build and test
 
@@ -101,7 +189,6 @@ not a universal performance claim.
 ## Limitations
 
 - It is not thread-safe by design.
-- Double-free detection is not provided in the release-oriented fast path.
+- Double-free detection requires explicitly enabled diagnostic mode.
 - All live objects must be destroyed before the pool itself is destroyed.
 - The pool is fixed-capacity and never grows.
-
