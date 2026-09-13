@@ -23,6 +23,10 @@ object lifetime, cache behavior, policies, and provider-based storage.
 - Per-class usage and internal-fragmentation statistics
 - `std::pmr::memory_resource` integration for standard-library containers
 - Configurable upstream PMR resource with identity-based equality
+- Lock-policy-based synchronized wrapper for shared allocation
+- Per-thread size-class caches with configurable refill and flush watermarks
+- Safe cross-thread deallocation through synchronized central storage
+- Thread-safe cache, live-allocation, and remote-free statistics
 - Exception-safe object construction: a throwing constructor returns its block
   to the pool
 - Ownership and block-boundary validation on deallocation
@@ -31,10 +35,11 @@ object lifetime, cache behavior, policies, and provider-based storage.
 - Optional allocation, peak-use, failure, and reserved-memory statistics
 - Copy and move disabled so the backing allocation cannot be invalidated
 
-The base implementation is intentionally not synchronized. A caller can give
-each thread its own pool for the lowest overhead or place a lock around a shared
-pool. Adding a mutex inside this class would hide that policy choice and change
-the latency characteristics being studied.
+The base implementation remains intentionally unsynchronized. Applications can
+use one pool per thread, select `SynchronizedAllocator` for a simple shared
+baseline, or use `ThreadCachedAllocator` to reduce central allocator traffic.
+Keeping concurrency in separate wrappers preserves the cost model and single
+responsibility of the original allocator.
 
 ## Design
 
@@ -77,6 +82,10 @@ include/memory_pool/                 public API
   segregated_allocator_statistics.hpp per-class statistics
   segregated_allocator.hpp           mixed-size allocator facade
   pool_memory_resource.hpp            standard PMR adapter
+  synchronized_allocator.hpp          lock-policy synchronization decorator
+  concurrency_options.hpp             thread-cache watermarks and batch size
+  concurrency_statistics.hpp          concurrent allocator counters
+  thread_cached_allocator.hpp         cached shared allocator facade
 
 src/                                 compiled implementation
   chunk_manager.cpp                  multi-chunk ownership and growth
@@ -86,10 +95,12 @@ src/                                 compiled implementation
   size_class_selector.cpp            smallest-class selection
   segregated_allocator.cpp           allocation/deallocation routing
   pool_memory_resource.cpp            PMR and upstream adaptation
+  thread_cached_allocator.cpp         local caches and remote-free routing
   detail/block_layout.*              alignment and overflow-safe layout
   detail/diagnostic_state.*          block state and integrity checks
   detail/memory_guard.*              poisoning and canaries
   detail/statistics_tracker.*        optional counter updates
+  detail/thread_cache_state.*        central locking and owner metadata
 
 tests/
   fixed_size_memory_pool_tests.cpp   core behavior and object lifetime
@@ -98,6 +109,7 @@ tests/
   phase3_tests.cpp                   providers, chunks, growth, and policies
   segregated_allocator_tests.cpp     mixed-size routing and fallback
   pmr_tests.cpp                      standard-container integration
+  concurrency_tests.cpp              shared, cached, and remote-free stress tests
   statistics_tests.cpp               counter behavior
 ```
 
@@ -343,6 +355,57 @@ without improving the ownership model. Node-based containers are natural pool
 users; large contiguous growth requests may use larger classes or upstream
 fallback and should be benchmarked for the actual workload.
 
+### Concurrency layers
+
+`SynchronizedAllocator` is the correctness-first shared allocator. It composes
+one `SegregatedAllocator` with a mutex and protects allocation, deallocation,
+ownership queries, and statistics snapshots with that same lock:
+
+```cpp
+memory_pool::SynchronizedAllocator allocator;
+
+void* block = allocator.allocate(48, 16);
+allocator.deallocate(block, 48, 16);
+```
+
+The wrapper is an alias of `BasicSynchronizedAllocator<std::mutex>`. A custom
+BasicLockable type can be supplied when a workload needs a different lock
+policy. The contained allocator remains private so callers cannot bypass the
+lock accidentally.
+
+`ThreadCachedAllocator` adds one small-block cache per thread and size class:
+
+```cpp
+memory_pool::ThreadCachedAllocator allocator(
+    {},
+    {.low_watermark = 8, .high_watermark = 32, .refill_batch = 16});
+```
+
+An empty local cache obtains a batch from synchronized central storage. A
+same-thread deallocation enters that thread's cache. When a bin grows above the
+high watermark, a batch is returned until the low watermark is reached. Calling
+`release_current_thread_cache()` returns all cached blocks owned by the caller;
+thread exit performs the same cleanup automatically.
+
+Every live allocation records a stable thread identifier. If another thread
+returns it, the block bypasses that thread's cache and goes directly to central
+storage. Allocation records are split across 64 lock shards, while the
+underlying `SegregatedAllocator` has a separate central mutex. This makes
+cross-thread frees safe without letting one thread access another thread's
+local vectors. Cached blocks remain allocated from the central allocator until
+they are flushed, so the cache statistics distinguish logical live allocations,
+cached blocks, and central operations.
+
+All worker threads must finish before `ThreadCachedAllocator` is destroyed.
+Concurrent destruction and allocator calls are invalid. The implementation is
+mutex-based, not lock-free; no ABA or memory-reclamation claim is made.
+
+The included concurrency benchmark compares immediate shared allocate/free
+pairs. One local 8-thread Release run measured 566.17 ns/pair for the
+synchronized baseline and 247.55 ns/pair for the thread-cached allocator. This
+demonstrates the intended batching effect for that run only; other machines and
+workloads will differ.
+
 ## Build and test
 
 ```bash
@@ -359,7 +422,9 @@ Run the example and microbenchmark:
 ./build/growing_pool_example
 ./build/segregated_allocator_example
 ./build/pmr_example
+./build/concurrency_example
 ./build/memory_pool_benchmark
+./build/concurrency_benchmark
 ```
 
 Enable AddressSanitizer and UndefinedBehaviorSanitizer:
@@ -370,6 +435,17 @@ cmake -S . -B build-sanitize \
   -DCMAKE_BUILD_TYPE=Debug
 cmake --build build-sanitize --parallel
 ctest --test-dir build-sanitize --output-on-failure
+```
+
+Run ThreadSanitizer in a separate build because it cannot be combined with
+AddressSanitizer:
+
+```bash
+cmake -S . -B build-tsan \
+  -DMEMORY_POOL_ENABLE_THREAD_SANITIZER=ON \
+  -DCMAKE_BUILD_TYPE=Debug
+cmake --build build-tsan --parallel
+ctest --test-dir build-tsan --output-on-failure
 ```
 
 Benchmark results depend on the compiler, optimization level, standard library,
@@ -393,10 +469,14 @@ not a universal performance claim.
 | `SegregatedAllocator::allocate()` | O(log(classes) + chunks in selected class) | O(1) normally |
 | `SegregatedAllocator::deallocate()` | O(total chunks across classes) | O(1) |
 | `PoolMemoryResource::allocate()` | Same as `SegregatedAllocator::allocate()` | O(1) normally |
+| `SynchronizedAllocator` operation | Underlying operation plus one lock | O(1) |
+| Thread-cache hit/local free | O(1) expected, including one metadata-shard lock | O(1) |
+| Thread-cache refill/flush | O(batch size) | O(batch size) per local cache |
 
 ## Limitations
 
-- It is not thread-safe by design.
+- The base pools, `SegregatedAllocator`, and `PoolMemoryResource` remain
+  unsynchronized by design; use an explicit concurrency wrapper for shared use.
 - `FixedSizeMemoryPool` double-free detection requires diagnostic mode;
   `MemoryChunk` always tracks allocation state.
 - All live objects must be destroyed before the pool itself is destroyed.
@@ -408,3 +488,7 @@ not a universal performance claim.
   size classes and chunk ranges to find the owner.
 - `PoolMemoryResource` is unsynchronized and must not be shared across threads
   without an external synchronization layer.
+- Thread-cache metadata improves diagnostics and remote-free routing but adds a
+  sharded lookup to every cached allocation and deallocation.
+- Thread-local caches can temporarily retain free blocks until a watermark
+  flush, explicit release, or thread exit.

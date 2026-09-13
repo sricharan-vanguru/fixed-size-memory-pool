@@ -32,3 +32,13 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
+  thread-sanitizer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure ThreadSanitizer
+        run: cmake -S . -B build -DMEMORY_POOL_ENABLE_THREAD_SANITIZER=ON -DCMAKE_BUILD_TYPE=Debug
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure

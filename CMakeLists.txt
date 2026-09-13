@@ -1,7 +1,14 @@
 cmake_minimum_required(VERSION 3.20)
-project(fixed_size_memory_pool VERSION 1.5.0 LANGUAGES CXX)
+project(fixed_size_memory_pool VERSION 1.6.0 LANGUAGES CXX)
+
+find_package(Threads REQUIRED)
 
 option(MEMORY_POOL_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+option(MEMORY_POOL_ENABLE_THREAD_SANITIZER "Enable ThreadSanitizer" OFF)
+
+if(MEMORY_POOL_ENABLE_SANITIZERS AND MEMORY_POOL_ENABLE_THREAD_SANITIZER)
+  message(FATAL_ERROR "Address/Undefined sanitizers and ThreadSanitizer cannot be enabled together")
+endif()
 
 function(memory_pool_enable_warnings target)
   if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -17,15 +24,18 @@ add_library(memory_pool
   src/pool_memory_resource.cpp
   src/segregated_allocator.cpp
   src/size_class_selector.cpp
+  src/thread_cached_allocator.cpp
   src/detail/block_layout.cpp
   src/detail/diagnostic_state.cpp
   src/detail/memory_guard.cpp
   src/detail/statistics_tracker.cpp
+  src/detail/thread_cache_state.cpp
 )
 target_include_directories(memory_pool
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+target_link_libraries(memory_pool PUBLIC Threads::Threads)
 target_compile_features(memory_pool PUBLIC cxx_std_20)
 memory_pool_enable_warnings(memory_pool)
 
@@ -33,6 +43,10 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   if(MEMORY_POOL_ENABLE_SANITIZERS)
     target_compile_options(memory_pool PUBLIC -fsanitize=address,undefined -fno-omit-frame-pointer)
     target_link_options(memory_pool PUBLIC -fsanitize=address,undefined)
+  endif()
+  if(MEMORY_POOL_ENABLE_THREAD_SANITIZER)
+    target_compile_options(memory_pool PUBLIC -fsanitize=thread -fno-omit-frame-pointer)
+    target_link_options(memory_pool PUBLIC -fsanitize=thread)
   endif()
 endif()
 
@@ -56,14 +70,23 @@ add_executable(pmr_example examples/pmr_usage.cpp)
 target_link_libraries(pmr_example PRIVATE memory_pool)
 memory_pool_enable_warnings(pmr_example)
 
+add_executable(concurrency_example examples/concurrency_usage.cpp)
+target_link_libraries(concurrency_example PRIVATE memory_pool)
+memory_pool_enable_warnings(concurrency_example)
+
 add_executable(memory_pool_benchmark benchmarks/allocation_benchmark.cpp)
 target_link_libraries(memory_pool_benchmark PRIVATE memory_pool)
 memory_pool_enable_warnings(memory_pool_benchmark)
+
+add_executable(concurrency_benchmark benchmarks/concurrency_benchmark.cpp)
+target_link_libraries(concurrency_benchmark PRIVATE memory_pool)
+memory_pool_enable_warnings(concurrency_benchmark)
 
 include(CTest)
 if(BUILD_TESTING)
   add_executable(memory_pool_tests
     tests/memory_pool_tests.cpp
+    tests/concurrency_tests.cpp
     tests/fixed_size_memory_pool_tests.cpp
     tests/diagnostics_tests.cpp
     tests/object_pool_tests.cpp
