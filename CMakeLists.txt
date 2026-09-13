@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(fixed_size_memory_pool VERSION 1.1.0 LANGUAGES CXX)
+project(fixed_size_memory_pool VERSION 1.2.0 LANGUAGES CXX)
 
 option(MEMORY_POOL_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 
@@ -34,6 +34,10 @@ add_executable(memory_pool_example examples/basic_usage.cpp)
 target_link_libraries(memory_pool_example PRIVATE memory_pool)
 memory_pool_enable_warnings(memory_pool_example)
 
+add_executable(object_pool_example examples/object_pool_usage.cpp)
+target_link_libraries(object_pool_example PRIVATE memory_pool)
+memory_pool_enable_warnings(object_pool_example)
+
 add_executable(memory_pool_benchmark benchmarks/allocation_benchmark.cpp)
 target_link_libraries(memory_pool_benchmark PRIVATE memory_pool)
 memory_pool_enable_warnings(memory_pool_benchmark)
@@ -44,6 +48,7 @@ if(BUILD_TESTING)
     tests/memory_pool_tests.cpp
     tests/fixed_size_memory_pool_tests.cpp
     tests/diagnostics_tests.cpp
+    tests/object_pool_tests.cpp
     tests/statistics_tests.cpp
   )
   target_link_libraries(memory_pool_tests PRIVATE memory_pool)

@@ -11,6 +11,8 @@ manual memory management, alignment, object lifetime, and cache behavior.
 - Configurable power-of-two alignment, including cache-line alignment
 - Placement construction and explicit destruction through `create<T>` and
   `destroy<T>`
+- Type-safe `ObjectPool<T>` construction with automatic size and alignment
+- Move-only `PoolPtr<T>` ownership for automatic pooled-object destruction
 - Exception-safe object construction: a throwing constructor returns its block
   to the pool
 - Ownership and block-boundary validation on deallocation
@@ -51,6 +53,8 @@ include/memory_pool/                 public API
   pool_options.hpp                   optional behavior configuration
   pool_statistics.hpp                statistics result type
   pool_errors.hpp                    allocator-specific exceptions
+  object_pool.hpp                    type-safe facade for one object type
+  pool_ptr.hpp                       RAII pointer and pool-aware deleter
 
 src/                                 compiled implementation
   fixed_size_memory_pool.cpp         storage and free-list coordination
@@ -62,6 +66,7 @@ src/                                 compiled implementation
 tests/
   fixed_size_memory_pool_tests.cpp   core behavior and object lifetime
   diagnostics_tests.cpp              misuse and corruption detection
+  object_pool_tests.cpp              typed construction and RAII ownership
   statistics_tests.cpp               counter behavior
 ```
 
@@ -147,6 +152,40 @@ All diagnostics are optional. Poisoning, guards, state tracking, statistics, and
 callbacks add storage or execution overhead and should be selected according to
 the workload.
 
+### Type-safe objects and RAII
+
+`ObjectPool<T>` derives the correct block size and alignment from `T`, so callers
+do not need to configure those values manually. Constructor arguments are
+perfectly forwarded:
+
+```cpp
+struct Session {
+    int id;
+    std::string state;
+};
+
+memory_pool::ObjectPool<Session> sessions(128);
+Session* session = sessions.create(42, "active");
+sessions.destroy(session);
+```
+
+Prefer `make_unique()` when ownership stays within one scope. It returns a
+move-only `PoolPtr<T>` that destroys the object and returns its block when the
+pointer is reset, leaves scope, or participates in exception unwinding:
+
+```cpp
+memory_pool::ObjectPool<Session> sessions(128);
+auto session = sessions.make_unique(42, "active");
+```
+
+`PoolPtr<T>` stores a non-owning reference to its originating pool. The pool
+must therefore outlive every `PoolPtr` and raw pointer created from it. This is
+the same ordering naturally provided by declaring the pool before its pointers.
+The pool is intentionally non-copyable and non-movable, and object creation from
+a temporary `ObjectPool` is rejected at compile time. Runtime lifetime tracking
+is not added because it would require a shared control block and reference-count
+overhead on this low-level path.
+
 ## Build and test
 
 ```bash
@@ -159,6 +198,7 @@ Run the example and microbenchmark:
 
 ```bash
 ./build/memory_pool_example
+./build/object_pool_example
 ./build/memory_pool_benchmark
 ```
 
@@ -185,10 +225,12 @@ not a universal performance claim.
 | `deallocate()` | O(1) | O(1) |
 | `create<T>()` | O(1) plus `T` construction | O(1) |
 | `destroy<T>()` | O(1) plus `T` destruction | O(1) |
+| `ObjectPool<T>::make_unique()` | O(1) plus `T` construction | O(1) |
 
 ## Limitations
 
 - It is not thread-safe by design.
 - Double-free detection requires explicitly enabled diagnostic mode.
 - All live objects must be destroyed before the pool itself is destroyed.
+- Every `PoolPtr<T>` must be destroyed before its originating pool.
 - The pool is fixed-capacity and never grows.
