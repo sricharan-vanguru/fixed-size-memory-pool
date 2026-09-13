@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(fixed_size_memory_pool VERSION 1.3.0 LANGUAGES CXX)
+project(fixed_size_memory_pool VERSION 1.4.0 LANGUAGES CXX)
 
 option(MEMORY_POOL_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 
@@ -14,6 +14,8 @@ add_library(memory_pool
   src/fixed_size_memory_pool.cpp
   src/memory_chunk.cpp
   src/new_delete_memory_provider.cpp
+  src/segregated_allocator.cpp
+  src/size_class_selector.cpp
   src/detail/block_layout.cpp
   src/detail/diagnostic_state.cpp
   src/detail/memory_guard.cpp
@@ -45,6 +47,10 @@ add_executable(growing_pool_example examples/growing_pool_usage.cpp)
 target_link_libraries(growing_pool_example PRIVATE memory_pool)
 memory_pool_enable_warnings(growing_pool_example)
 
+add_executable(segregated_allocator_example examples/segregated_allocator_usage.cpp)
+target_link_libraries(segregated_allocator_example PRIVATE memory_pool)
+memory_pool_enable_warnings(segregated_allocator_example)
+
 add_executable(memory_pool_benchmark benchmarks/allocation_benchmark.cpp)
 target_link_libraries(memory_pool_benchmark PRIVATE memory_pool)
 memory_pool_enable_warnings(memory_pool_benchmark)
@@ -57,6 +63,7 @@ if(BUILD_TESTING)
     tests/diagnostics_tests.cpp
     tests/object_pool_tests.cpp
     tests/phase3_tests.cpp
+    tests/segregated_allocator_tests.cpp
     tests/statistics_tests.cpp
   )
   target_link_libraries(memory_pool_tests PRIVATE memory_pool)

@@ -18,6 +18,9 @@ object lifetime, cache behavior, policies, and provider-based storage.
 - Return-null, throw, grow, and heap-fallback exhaustion policies
 - Empty-chunk reclamation with configurable spare capacity
 - Injectable backing-memory providers
+- Configurable multi-size classes from 8 through 4096 bytes by default
+- Aligned system fallback for large and unsupported over-aligned requests
+- Per-class usage and internal-fragmentation statistics
 - Exception-safe object construction: a throwing constructor returns its block
   to the pool
 - Ownership and block-boundary validation on deallocation
@@ -67,12 +70,18 @@ include/memory_pool/                 public API
   chunk_policies.hpp                 growth and reclamation configuration
   exhaustion_policies.hpp            compile-time exhaustion strategies
   chunk_pool.hpp                     policy-based growing pool facade
+  size_class_selector.hpp            size/alignment routing rules
+  segregated_allocator_options.hpp   multi-size configuration
+  segregated_allocator_statistics.hpp per-class statistics
+  segregated_allocator.hpp           mixed-size allocator facade
 
 src/                                 compiled implementation
   chunk_manager.cpp                  multi-chunk ownership and growth
   fixed_size_memory_pool.cpp         storage and free-list coordination
   memory_chunk.cpp                   per-chunk block allocation
   new_delete_memory_provider.cpp     new/delete backing storage
+  size_class_selector.cpp            smallest-class selection
+  segregated_allocator.cpp           allocation/deallocation routing
   detail/block_layout.*              alignment and overflow-safe layout
   detail/diagnostic_state.*          block state and integrity checks
   detail/memory_guard.*              poisoning and canaries
@@ -83,6 +92,7 @@ tests/
   diagnostics_tests.cpp              misuse and corruption detection
   object_pool_tests.cpp              typed construction and RAII ownership
   phase3_tests.cpp                   providers, chunks, growth, and policies
+  segregated_allocator_tests.cpp     mixed-size routing and fallback
   statistics_tests.cpp               counter behavior
 ```
 
@@ -246,6 +256,40 @@ remain outside normal block reuse.
 `MemoryChunk` validates block boundaries and allocation state, making foreign
 pointers, interior pointers, and duplicate returns deterministic errors.
 
+### Multi-size segregated allocation
+
+`SegregatedAllocator` owns one growing chunk pool per size class. The default
+classes are 8, 16, 32, 64, 128, 256, 512, 1024, 2048, and 4096 bytes. A request
+is routed to the smallest class that satisfies both its size and alignment:
+
+```cpp
+memory_pool::SegregatedAllocator allocator;
+
+void* first = allocator.allocate(24, 8);   // 32-byte class
+void* second = allocator.allocate(24, 64); // 64-byte class
+
+allocator.deallocate(first, 24, 8);
+allocator.deallocate(second, 24, 64);
+```
+
+A zero-byte request is normalized to one byte. Alignments must be non-zero
+powers of two. A request larger than the maximum class, or with an alignment
+that no configured class supports, is allocated directly through the memory
+provider with the requested alignment.
+
+Pooled allocations do not carry an allocation header. Unsized `deallocate`
+finds the owning size class through chunk metadata. The sized overload checks
+that the supplied size and alignment select the same class and throws
+`AllocationMismatchError` when they do not. Since multiple sizes can share one
+class, it detects routing mistakes rather than exact byte differences within
+that class. Fallback allocations keep exact size/alignment metadata and require
+an exact match during sized deallocation.
+
+Statistics are cumulative and available through `statistics()`. Each class
+reports requests, successful allocations, current/peak use, requested bytes,
+served bytes, and internal-fragmentation bytes. Internal fragmentation is the
+difference between the selected class size and the normalized requested size.
+
 ## Build and test
 
 ```bash
@@ -260,6 +304,7 @@ Run the example and microbenchmark:
 ./build/memory_pool_example
 ./build/object_pool_example
 ./build/growing_pool_example
+./build/segregated_allocator_example
 ./build/memory_pool_benchmark
 ```
 
@@ -290,6 +335,9 @@ not a universal performance claim.
 | `MemoryChunk::allocate()` | O(1) | O(1) |
 | `ChunkManager::try_allocate()` | O(number of chunks) | O(1) |
 | `ChunkManager::grow()` | O(blocks in new chunk) | O(new chunk size) |
+| `SizeClassSelector::select()` | O(log(number of classes)) | O(1) |
+| `SegregatedAllocator::allocate()` | O(log(classes) + chunks in selected class) | O(1) normally |
+| `SegregatedAllocator::deallocate()` | O(total chunks across classes) | O(1) |
 
 ## Limitations
 
@@ -301,3 +349,5 @@ not a universal performance claim.
 - `FixedSizeMemoryPool` and `ObjectPool<T>` are fixed-capacity and never grow.
 - Chunk-based pools preserve pointer stability but currently scan chunks when
   selecting available storage or finding a returned pointer.
+- Segregated pooled allocations avoid headers, so unsized deallocation scans
+  size classes and chunk ranges to find the owner.
