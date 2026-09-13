@@ -41,6 +41,8 @@ public:
     [[nodiscard]] bool owns(const void* pointer) const;
     [[nodiscard]] std::optional<std::size_t> owning_size_class(
         const void* pointer) const;
+    /// Each field is atomic and race-free, but a snapshot taken during active
+    /// allocation is not a single linearizable view across all counters.
     [[nodiscard]] ThreadCacheStatistics statistics() const noexcept;
     [[nodiscard]] SegregatedAllocatorStatistics central_statistics() const;
 

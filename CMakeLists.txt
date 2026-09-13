@@ -87,6 +87,7 @@ if(BUILD_TESTING)
   add_executable(memory_pool_tests
     tests/memory_pool_tests.cpp
     tests/concurrency_tests.cpp
+    tests/concurrency_edge_tests.cpp
     tests/fixed_size_memory_pool_tests.cpp
     tests/diagnostics_tests.cpp
     tests/object_pool_tests.cpp

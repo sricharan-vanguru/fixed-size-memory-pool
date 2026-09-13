@@ -110,6 +110,7 @@ tests/
   segregated_allocator_tests.cpp     mixed-size routing and fallback
   pmr_tests.cpp                      standard-container integration
   concurrency_tests.cpp              shared, cached, and remote-free stress tests
+  concurrency_edge_tests.cpp         concurrency boundaries and failure races
   statistics_tests.cpp               counter behavior
 ```
 
@@ -395,6 +396,12 @@ cross-thread frees safe without letting one thread access another thread's
 local vectors. Cached blocks remain allocated from the central allocator until
 they are flushed, so the cache statistics distinguish logical live allocations,
 cached blocks, and central operations.
+
+`statistics()` reads race-free atomic counters. During active allocation, its
+fields are an approximate observation rather than one linearizable instant, so
+temporary cross-field relationships should not be treated as invariants.
+`central_statistics()` locks central storage and returns a consistent snapshot
+of the underlying allocator itself.
 
 All worker threads must finish before `ThreadCachedAllocator` is destroyed.
 Concurrent destruction and allocator calls are invalid. The implementation is

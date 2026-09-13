@@ -34,6 +34,10 @@ namespace concurrency_tests {
 void run(TestContext& test);
 }
 
+namespace concurrency_edge_tests {
+void run(TestContext& test);
+}
+
 int main() {
     TestContext test;
     core_tests::run(test);
@@ -44,6 +48,7 @@ int main() {
     segregated_allocator_tests::run(test);
     pmr_tests::run(test);
     concurrency_tests::run(test);
+    concurrency_edge_tests::run(test);
 
     if (test.failures() == 0) {
         std::cout << "All memory pool tests passed\n";

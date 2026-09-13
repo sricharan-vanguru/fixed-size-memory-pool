@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
+#include <limits>
 #include <stdexcept>
 #include <utility>
 
@@ -23,6 +24,10 @@ std::uint64_t current_thread_id() noexcept {
 ThreadCacheOptions validate_cache_options(ThreadCacheOptions options) {
     if (options.high_watermark == 0) {
         throw std::invalid_argument("high_watermark must be greater than zero");
+    }
+    if (options.high_watermark == std::numeric_limits<std::size_t>::max()) {
+        throw std::invalid_argument(
+            "high_watermark is too large to reserve cache overflow space");
     }
     if (options.low_watermark > options.high_watermark) {
         throw std::invalid_argument(
