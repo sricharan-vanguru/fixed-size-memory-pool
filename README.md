@@ -21,6 +21,8 @@ object lifetime, cache behavior, policies, and provider-based storage.
 - Configurable multi-size classes from 8 through 4096 bytes by default
 - Aligned system fallback for large and unsupported over-aligned requests
 - Per-class usage and internal-fragmentation statistics
+- `std::pmr::memory_resource` integration for standard-library containers
+- Configurable upstream PMR resource with identity-based equality
 - Exception-safe object construction: a throwing constructor returns its block
   to the pool
 - Ownership and block-boundary validation on deallocation
@@ -74,6 +76,7 @@ include/memory_pool/                 public API
   segregated_allocator_options.hpp   multi-size configuration
   segregated_allocator_statistics.hpp per-class statistics
   segregated_allocator.hpp           mixed-size allocator facade
+  pool_memory_resource.hpp            standard PMR adapter
 
 src/                                 compiled implementation
   chunk_manager.cpp                  multi-chunk ownership and growth
@@ -82,6 +85,7 @@ src/                                 compiled implementation
   new_delete_memory_provider.cpp     new/delete backing storage
   size_class_selector.cpp            smallest-class selection
   segregated_allocator.cpp           allocation/deallocation routing
+  pool_memory_resource.cpp            PMR and upstream adaptation
   detail/block_layout.*              alignment and overflow-safe layout
   detail/diagnostic_state.*          block state and integrity checks
   detail/memory_guard.*              poisoning and canaries
@@ -93,6 +97,7 @@ tests/
   object_pool_tests.cpp              typed construction and RAII ownership
   phase3_tests.cpp                   providers, chunks, growth, and policies
   segregated_allocator_tests.cpp     mixed-size routing and fallback
+  pmr_tests.cpp                      standard-container integration
   statistics_tests.cpp               counter behavior
 ```
 
@@ -290,6 +295,54 @@ reports requests, successful allocations, current/peak use, requested bytes,
 served bytes, and internal-fragmentation bytes. Internal fragmentation is the
 difference between the selected class size and the normalized requested size.
 
+### Standard-library PMR integration
+
+`PoolMemoryResource` adapts `SegregatedAllocator` to
+`std::pmr::memory_resource`, allowing standard PMR containers to use the
+multi-size pool without a container-specific allocator:
+
+```cpp
+memory_pool::PoolMemoryResource resource;
+
+{
+    std::pmr::vector<int> values(&resource);
+    std::pmr::string text(&resource);
+    std::pmr::list<int> nodes(&resource);
+    std::pmr::unordered_map<int, int> lookup(&resource);
+}
+```
+
+Declaration order is part of the ownership contract. Every container and
+`std::pmr::polymorphic_allocator` using the resource must be destroyed before
+the `PoolMemoryResource`. When a custom upstream resource is supplied, that
+upstream is non-owning and must remain alive until the pool resource has been
+destroyed. The default upstream is `std::pmr::get_default_resource()`.
+
+Two `PoolMemoryResource` objects compare unequal even when configured
+identically because each owns different allocation state. A resource compares
+equal only to itself. This prevents a container from returning memory to a
+different pool. Requests above the largest class and unsupported over-aligned
+requests are forwarded to the configured upstream with their exact size and
+alignment.
+
+| Resource | Synchronization | Size classes | Diagnostics/statistics |
+|---|---|---|---|
+| `PoolMemoryResource` | None | Explicitly configurable | Per-class and fallback statistics |
+| `std::pmr::unsynchronized_pool_resource` | None | Implementation managed | Standard resource interface only |
+| `std::pmr::synchronized_pool_resource` | Internal synchronization | Implementation managed | Standard resource interface only |
+
+The comparison is behavioral, not a universal performance ranking. Workload,
+standard-library implementation, compiler, and configuration determine which
+resource is faster.
+
+A separate `PoolAllocator<T>` is intentionally not provided. The standard
+`std::pmr::polymorphic_allocator<T>` already supplies typed `allocate(n)`,
+container integration, rebinding through PMR construction rules, and equality
+based on the underlying resource. Another adapter would duplicate that behavior
+without improving the ownership model. Node-based containers are natural pool
+users; large contiguous growth requests may use larger classes or upstream
+fallback and should be benchmarked for the actual workload.
+
 ## Build and test
 
 ```bash
@@ -305,6 +358,7 @@ Run the example and microbenchmark:
 ./build/object_pool_example
 ./build/growing_pool_example
 ./build/segregated_allocator_example
+./build/pmr_example
 ./build/memory_pool_benchmark
 ```
 
@@ -338,6 +392,7 @@ not a universal performance claim.
 | `SizeClassSelector::select()` | O(log(number of classes)) | O(1) |
 | `SegregatedAllocator::allocate()` | O(log(classes) + chunks in selected class) | O(1) normally |
 | `SegregatedAllocator::deallocate()` | O(total chunks across classes) | O(1) |
+| `PoolMemoryResource::allocate()` | Same as `SegregatedAllocator::allocate()` | O(1) normally |
 
 ## Limitations
 
@@ -351,3 +406,5 @@ not a universal performance claim.
   selecting available storage or finding a returned pointer.
 - Segregated pooled allocations avoid headers, so unsized deallocation scans
   size classes and chunk ranges to find the owner.
+- `PoolMemoryResource` is unsynchronized and must not be shared across threads
+  without an external synchronization layer.

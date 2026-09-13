@@ -26,6 +26,10 @@ namespace segregated_allocator_tests {
 void run(TestContext& test);
 }
 
+namespace pmr_tests {
+void run(TestContext& test);
+}
+
 int main() {
     TestContext test;
     core_tests::run(test);
@@ -34,6 +38,7 @@ int main() {
     object_pool_tests::run(test);
     phase3_tests::run(test);
     segregated_allocator_tests::run(test);
+    pmr_tests::run(test);
 
     if (test.failures() == 0) {
         std::cout << "All memory pool tests passed\n";
