@@ -1,8 +1,9 @@
 # Fixed-Size Memory Pool Allocator
 
-A compact C++20 memory pool that pre-allocates one contiguous region and serves
-fixed-size allocations in constant time. It is intended as a focused study of
-manual memory management, alignment, object lifetime, and cache behavior.
+A modular C++20 memory-pool library. Its small fixed-capacity core pre-allocates
+one contiguous region, while an optional chunk layer adds stable growth and
+reclamation. It is a focused study of manual memory management, alignment,
+object lifetime, cache behavior, policies, and provider-based storage.
 
 ## What it demonstrates
 
@@ -13,6 +14,10 @@ manual memory management, alignment, object lifetime, and cache behavior.
   `destroy<T>`
 - Type-safe `ObjectPool<T>` construction with automatic size and alignment
 - Move-only `PoolPtr<T>` ownership for automatic pooled-object destruction
+- Stable multi-chunk storage with fixed or geometric growth
+- Return-null, throw, grow, and heap-fallback exhaustion policies
+- Empty-chunk reclamation with configurable spare capacity
+- Injectable backing-memory providers
 - Exception-safe object construction: a throwing constructor returns its block
   to the pool
 - Ownership and block-boundary validation on deallocation
@@ -55,9 +60,19 @@ include/memory_pool/                 public API
   pool_errors.hpp                    allocator-specific exceptions
   object_pool.hpp                    type-safe facade for one object type
   pool_ptr.hpp                       RAII pointer and pool-aware deleter
+  memory_provider.hpp                backing-storage provider contract
+  new_delete_memory_provider.hpp     default provider
+  memory_chunk.hpp                   one stable block-storage allocation
+  chunk_manager.hpp                  growth, lookup, and reclamation
+  chunk_policies.hpp                 growth and reclamation configuration
+  exhaustion_policies.hpp            compile-time exhaustion strategies
+  chunk_pool.hpp                     policy-based growing pool facade
 
 src/                                 compiled implementation
+  chunk_manager.cpp                  multi-chunk ownership and growth
   fixed_size_memory_pool.cpp         storage and free-list coordination
+  memory_chunk.cpp                   per-chunk block allocation
+  new_delete_memory_provider.cpp     new/delete backing storage
   detail/block_layout.*              alignment and overflow-safe layout
   detail/diagnostic_state.*          block state and integrity checks
   detail/memory_guard.*              poisoning and canaries
@@ -67,6 +82,7 @@ tests/
   fixed_size_memory_pool_tests.cpp   core behavior and object lifetime
   diagnostics_tests.cpp              misuse and corruption detection
   object_pool_tests.cpp              typed construction and RAII ownership
+  phase3_tests.cpp                   providers, chunks, growth, and policies
   statistics_tests.cpp               counter behavior
 ```
 
@@ -186,6 +202,50 @@ a temporary `ObjectPool` is rejected at compile time. Runtime lifetime tracking
 is not added because it would require a shared control block and reference-count
 overhead on this low-level path.
 
+### Storage providers and growing chunks
+
+`ChunkManager` separates fast block reuse from backing-memory acquisition. Each
+`MemoryChunk` owns one provider allocation and never moves, so adding another
+chunk does not invalidate existing pointers. `try_allocate()` examines existing
+chunks only; the provider is called only by growth, reclamation, destruction, or
+heap fallback.
+
+```cpp
+memory_pool::GrowingChunkPool pool({
+    .block_size = 64,
+    .initial_blocks = 32,
+    .alignment = 64,
+    .growth = memory_pool::GrowthPolicy::geometric(2, 256),
+    .reclamation = {.spare_empty_chunks = 1},
+});
+
+void* block = pool.allocate();
+pool.deallocate(block);
+```
+
+This configuration creates 32, 64, 128, then 256-block chunks and caps later
+chunks at 256 blocks. When more than one chunk is completely free, reclamation
+releases the extras while retaining one spare.
+
+Four aliases select exhaustion behavior at compile time:
+
+| Alias | Behavior when current chunks are full |
+|---|---|
+| `NullableChunkPool` | Return `nullptr` |
+| `ThrowingChunkPool` | Throw `std::bad_alloc` |
+| `GrowingChunkPool` | Acquire the next configured chunk |
+| `HeapFallbackChunkPool` | Allocate one fallback block from the provider |
+
+`IMemoryProvider` is the Strategy boundary for backing storage. `allocate` must
+return a non-null aligned allocation or throw, and `deallocate` must not throw.
+The manager and its chunks share ownership of the provider, so it remains alive
+until all storage has been released. The default `NewDeleteMemoryProvider` uses
+ordinary or aligned `new`/`delete` as appropriate. Provider calls deliberately
+remain outside normal block reuse.
+
+`MemoryChunk` validates block boundaries and allocation state, making foreign
+pointers, interior pointers, and duplicate returns deterministic errors.
+
 ## Build and test
 
 ```bash
@@ -199,6 +259,7 @@ Run the example and microbenchmark:
 ```bash
 ./build/memory_pool_example
 ./build/object_pool_example
+./build/growing_pool_example
 ./build/memory_pool_benchmark
 ```
 
@@ -226,11 +287,17 @@ not a universal performance claim.
 | `create<T>()` | O(1) plus `T` construction | O(1) |
 | `destroy<T>()` | O(1) plus `T` destruction | O(1) |
 | `ObjectPool<T>::make_unique()` | O(1) plus `T` construction | O(1) |
+| `MemoryChunk::allocate()` | O(1) | O(1) |
+| `ChunkManager::try_allocate()` | O(number of chunks) | O(1) |
+| `ChunkManager::grow()` | O(blocks in new chunk) | O(new chunk size) |
 
 ## Limitations
 
 - It is not thread-safe by design.
-- Double-free detection requires explicitly enabled diagnostic mode.
+- `FixedSizeMemoryPool` double-free detection requires diagnostic mode;
+  `MemoryChunk` always tracks allocation state.
 - All live objects must be destroyed before the pool itself is destroyed.
 - Every `PoolPtr<T>` must be destroyed before its originating pool.
-- The pool is fixed-capacity and never grows.
+- `FixedSizeMemoryPool` and `ObjectPool<T>` are fixed-capacity and never grow.
+- Chunk-based pools preserve pointer stability but currently scan chunks when
+  selecting available storage or finding a returned pointer.
