@@ -5,6 +5,10 @@ one contiguous region, while an optional chunk layer adds stable growth and
 reclamation. It is a focused study of manual memory management, alignment,
 object lifetime, cache behavior, policies, and provider-based storage.
 
+Detailed references: [architecture](docs/ARCHITECTURE.md),
+[API and lifetime guide](docs/API_GUIDE.md),
+[versioning policy](docs/VERSIONING.md), and [changelog](CHANGELOG.md).
+
 ## What it demonstrates
 
 - O(1) allocation and deallocation through an intrusive free list
@@ -66,8 +70,8 @@ state tracking, canaries, poisoning, and statistics collection are private
 implementation modules.
 
 Internal modules are not part of the supported public API. Applications should
-include headers only from `include/memory_pool` and link the `memory_pool` CMake
-target.
+include headers only from `include/memory_pool` and link the
+`memory_pool::memory_pool` CMake target.
 
 ### Fragmentation
 
@@ -421,6 +425,45 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
+
+Warnings can be promoted to errors with
+`-DMEMORY_POOL_WARNINGS_AS_ERRORS=ON`. Examples and benchmarks can be omitted
+with `-DMEMORY_POOL_BUILD_EXAMPLES=OFF` and
+`-DMEMORY_POOL_BUILD_BENCHMARKS=OFF`. When `clang-tidy` is installed, enable it
+with `-DMEMORY_POOL_ENABLE_CLANG_TIDY=ON`.
+
+Check repository formatting with:
+
+```bash
+clang-format --dry-run --Werror \
+  $(find include src tests examples benchmarks -type f \
+    \( -name '*.hpp' -o -name '*.cpp' \))
+```
+
+## Install and consume
+
+Install the library and its CMake package files:
+
+```bash
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_TESTING=OFF \
+  -DMEMORY_POOL_BUILD_EXAMPLES=OFF \
+  -DMEMORY_POOL_BUILD_BENCHMARKS=OFF
+cmake --build build --parallel
+cmake --install build --prefix /path/to/install
+```
+
+Consume it from another CMake project:
+
+```cmake
+find_package(fixed_size_memory_pool 1.7 REQUIRED)
+target_link_libraries(my_target PRIVATE memory_pool::memory_pool)
+```
+
+Pass the installation prefix through `CMAKE_PREFIX_PATH` when it is outside a
+standard system location. The package requires C++20 and finds its Threads
+dependency automatically.
 
 Run the example and microbenchmark:
 

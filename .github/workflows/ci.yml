@@ -5,17 +5,32 @@ on:
   pull_request:
 
 jobs:
+  formatting:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check clang-format
+        run: >-
+          clang-format --dry-run --Werror
+          $(find include src tests examples benchmarks -type f
+          \( -name '*.hpp' -o -name '*.cpp' \))
+
   build-and-test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         compiler: [g++, clang++]
+        build-type: [Debug, Release]
     steps:
       - uses: actions/checkout@v4
       - name: Configure
         env:
           CXX: ${{ matrix.compiler }}
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        run: >-
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=${{ matrix.build-type }}
+          -DMEMORY_POOL_WARNINGS_AS_ERRORS=ON
       - name: Build
         run: cmake --build build --parallel
       - name: Test
@@ -26,7 +41,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Configure sanitizers
-        run: cmake -S . -B build -DMEMORY_POOL_ENABLE_SANITIZERS=ON -DCMAKE_BUILD_TYPE=Debug
+        run: >-
+          cmake -S . -B build
+          -DMEMORY_POOL_ENABLE_SANITIZERS=ON
+          -DMEMORY_POOL_WARNINGS_AS_ERRORS=ON
+          -DCMAKE_BUILD_TYPE=Debug
       - name: Build
         run: cmake --build build --parallel
       - name: Test
@@ -37,8 +56,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Configure ThreadSanitizer
-        run: cmake -S . -B build -DMEMORY_POOL_ENABLE_THREAD_SANITIZER=ON -DCMAKE_BUILD_TYPE=Debug
+        run: >-
+          cmake -S . -B build
+          -DMEMORY_POOL_ENABLE_THREAD_SANITIZER=ON
+          -DMEMORY_POOL_WARNINGS_AS_ERRORS=ON
+          -DCMAKE_BUILD_TYPE=Debug
       - name: Build
         run: cmake --build build --parallel
       - name: Test
         run: ctest --test-dir build --output-on-failure
+
+  installed-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build library only
+        run: >-
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_TESTING=OFF
+          -DMEMORY_POOL_BUILD_EXAMPLES=OFF
+          -DMEMORY_POOL_BUILD_BENCHMARKS=OFF
+      - run: cmake --build build --parallel
+      - name: Install package
+        run: cmake --install build --prefix "${{ runner.temp }}/memory-pool"
+      - name: Configure external consumer
+        run: >-
+          cmake -S tests/package_consumer -B consumer-build
+          -DCMAKE_PREFIX_PATH="${{ runner.temp }}/memory-pool"
+      - name: Build and run external consumer
+        run: |
+          cmake --build consumer-build --parallel
+          ./consumer-build/memory_pool_package_consumer
