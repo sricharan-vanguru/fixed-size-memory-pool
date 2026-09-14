@@ -48,10 +48,9 @@ int main() {
     // PMR receives the same amount of caller-owned storage and cannot fall
     // through to an upstream resource, making both cases reuse fixed capacity.
     std::vector<std::byte> standard_storage(bytes_per_round);
-    std::pmr::monotonic_buffer_resource standard(
-        standard_storage.data(),
-        standard_storage.size(),
-        std::pmr::null_memory_resource());
+    std::pmr::monotonic_buffer_resource standard(standard_storage.data(),
+                                                 standard_storage.size(),
+                                                 std::pmr::null_memory_resource());
     const double standard_time = measure_nanoseconds(operations, [&] {
         for (std::size_t round = 0; round < rounds; ++round) {
             for (std::size_t index = 0; index < allocations_per_round; ++index) {
@@ -64,7 +63,6 @@ int main() {
 
     std::cout << std::fixed << std::setprecision(2)
               << "custom monotonic arena:       " << arena_time << " ns/allocation\n"
-              << "standard PMR monotonic arena: " << standard_time
-              << " ns/allocation\n"
+              << "standard PMR monotonic arena: " << standard_time << " ns/allocation\n"
               << "checksum:                     " << checksum << '\n';
 }

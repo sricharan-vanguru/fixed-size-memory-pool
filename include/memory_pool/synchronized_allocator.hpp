@@ -16,14 +16,12 @@ namespace memory_pool {
 
 /// Serializes access to one otherwise unsynchronized SegregatedAllocator.
 /// Mutex must meet the C++ BasicLockable requirements.
-template <typename Mutex = std::mutex>
-class BasicSynchronizedAllocator {
-public:
+template <typename Mutex = std::mutex> class BasicSynchronizedAllocator {
+  public:
     using mutex_type = Mutex;
 
-    explicit BasicSynchronizedAllocator(
-        SegregatedAllocatorOptions options = {},
-        MemoryProviderPtr provider = {})
+    explicit BasicSynchronizedAllocator(SegregatedAllocatorOptions options = {},
+                                        MemoryProviderPtr provider = {})
         : allocator_(std::move(options), std::move(provider)) {}
 
     BasicSynchronizedAllocator(const BasicSynchronizedAllocator&) = delete;
@@ -31,9 +29,8 @@ public:
     BasicSynchronizedAllocator(BasicSynchronizedAllocator&&) = delete;
     BasicSynchronizedAllocator& operator=(BasicSynchronizedAllocator&&) = delete;
 
-    [[nodiscard]] void* allocate(
-        std::size_t size,
-        std::size_t alignment = alignof(std::max_align_t)) {
+    [[nodiscard]] void* allocate(std::size_t size,
+                                 std::size_t alignment = alignof(std::max_align_t)) {
         const std::lock_guard<Mutex> lock(mutex_);
         return allocator_.allocate(size, alignment);
     }
@@ -43,9 +40,7 @@ public:
         allocator_.deallocate(pointer);
     }
 
-    void deallocate(void* pointer,
-                    std::size_t size,
-                    std::size_t alignment) {
+    void deallocate(void* pointer, std::size_t size, std::size_t alignment) {
         const std::lock_guard<Mutex> lock(mutex_);
         allocator_.deallocate(pointer, size, alignment);
     }
@@ -55,8 +50,8 @@ public:
         return allocator_.owns(pointer);
     }
 
-    [[nodiscard]] std::optional<std::size_t> owning_size_class(
-        const void* pointer) const {
+    [[nodiscard]] std::optional<std::size_t>
+    owning_size_class(const void* pointer) const {
         const std::lock_guard<Mutex> lock(mutex_);
         return allocator_.owning_size_class(pointer);
     }
@@ -74,7 +69,7 @@ public:
         return allocator_.statistics();
     }
 
-private:
+  private:
     mutable Mutex mutex_;
     SegregatedAllocator allocator_;
 };

@@ -11,10 +11,8 @@ namespace memory_pool {
 /// Exhaustion policies share this small duck-typed interface so BasicChunkPool
 /// pays no virtual-dispatch cost when selecting behavior.
 class ReturnNullOnExhaustion {
-public:
-    [[nodiscard]] void* on_exhaustion(ChunkManager&) const noexcept {
-        return nullptr;
-    }
+  public:
+    [[nodiscard]] void* on_exhaustion(ChunkManager&) const noexcept { return nullptr; }
     [[nodiscard]] bool owns(const void*) const noexcept { return false; }
     [[nodiscard]] bool try_deallocate(void*, ChunkManager&) noexcept { return false; }
     void release_all(ChunkManager&) noexcept {}
@@ -22,7 +20,7 @@ public:
 };
 
 class ThrowOnExhaustion {
-public:
+  public:
     [[noreturn]] void* on_exhaustion(ChunkManager&) const { throw std::bad_alloc{}; }
     [[nodiscard]] bool owns(const void*) const noexcept { return false; }
     [[nodiscard]] bool try_deallocate(void*, ChunkManager&) noexcept { return false; }
@@ -31,7 +29,7 @@ public:
 };
 
 class GrowOnExhaustion {
-public:
+  public:
     [[nodiscard]] void* on_exhaustion(ChunkManager& manager) const {
         return manager.grow().allocate();
     }
@@ -42,10 +40,10 @@ public:
 };
 
 class HeapFallbackOnExhaustion {
-public:
+  public:
     [[nodiscard]] void* on_exhaustion(ChunkManager& manager) {
-        void* const pointer = manager.memory_provider().allocate(
-            manager.block_size(), manager.alignment());
+        void* const pointer = manager.memory_provider().allocate(manager.block_size(),
+                                                                 manager.alignment());
         try {
             // Recording ownership can allocate and throw. Return the provider
             // block first so that metadata failure cannot leak memory.
@@ -85,7 +83,7 @@ public:
         return fallback_allocations_.size();
     }
 
-private:
+  private:
     std::unordered_set<void*> fallback_allocations_;
 };
 

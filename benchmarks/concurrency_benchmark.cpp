@@ -29,8 +29,7 @@ double measure_shared_pairs(Allocator& allocator,
         workers.emplace_back([&] {
             start_line.arrive_and_wait();
             std::uintptr_t local_checksum = 0;
-            for (std::size_t operation = 0;
-                 operation < operations_per_thread;
+            for (std::size_t operation = 0; operation < operations_per_thread;
                  ++operation) {
                 void* const pointer = allocator.allocate(64, 64);
                 local_checksum ^= reinterpret_cast<std::uintptr_t>(pointer);
@@ -69,17 +68,15 @@ int main() {
 
     const double synchronized_time = measure_shared_pairs(
         synchronized, thread_count, operations_per_thread, checksum);
-    const double cached_time = measure_shared_pairs(
-        cached, thread_count, operations_per_thread, checksum);
+    const double cached_time =
+        measure_shared_pairs(cached, thread_count, operations_per_thread, checksum);
 
     std::cout << std::fixed << std::setprecision(2)
               << "threads:                        " << thread_count << '\n'
-              << "synchronized allocator:        " << synchronized_time
-              << " ns/pair\n"
-              << "thread-cached allocator:        " << cached_time
-              << " ns/pair\n"
-              << "thread-cache hits:              "
-              << cached.statistics().cache_hits << '\n'
+              << "synchronized allocator:        " << synchronized_time << " ns/pair\n"
+              << "thread-cached allocator:        " << cached_time << " ns/pair\n"
+              << "thread-cache hits:              " << cached.statistics().cache_hits
+              << '\n'
               << "checksum:                       "
               << checksum.load(std::memory_order_relaxed) << '\n';
 }

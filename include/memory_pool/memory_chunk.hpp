@@ -10,7 +10,7 @@ namespace memory_pool {
 /// One stable backing allocation divided into equal-size blocks. Allocation
 /// state is always tracked so invalid and duplicate returns are deterministic.
 class MemoryChunk {
-public:
+  public:
     MemoryChunk(std::size_t block_size,
                 std::size_t block_count,
                 std::size_t alignment,
@@ -37,7 +37,7 @@ public:
     [[nodiscard]] std::size_t in_use() const noexcept;
     [[nodiscard]] std::size_t alignment() const noexcept;
 
-private:
+  private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };

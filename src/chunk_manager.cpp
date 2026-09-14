@@ -104,9 +104,7 @@ std::size_t ChunkManager::available() const noexcept {
     return total;
 }
 
-std::size_t ChunkManager::in_use() const noexcept {
-    return capacity() - available();
-}
+std::size_t ChunkManager::in_use() const noexcept { return capacity() - available(); }
 
 std::size_t ChunkManager::block_size() const noexcept { return block_size_; }
 std::size_t ChunkManager::alignment() const noexcept { return alignment_; }
@@ -120,8 +118,8 @@ void ChunkManager::reclaim_if_allowed(MemoryChunk* chunk) noexcept {
         return;
     }
 
-    const auto empty_chunks = static_cast<std::size_t>(std::count_if(
-        chunks_.begin(), chunks_.end(), [](const auto& candidate) {
+    const auto empty_chunks = static_cast<std::size_t>(
+        std::count_if(chunks_.begin(), chunks_.end(), [](const auto& candidate) {
             return candidate->empty();
         }));
     if (empty_chunks <= options_.reclamation.spare_empty_chunks) {
@@ -130,16 +128,17 @@ void ChunkManager::reclaim_if_allowed(MemoryChunk* chunk) noexcept {
 
     // Only the chunk that just became empty is considered. Erasing its owning
     // unique_ptr releases the provider allocation without moving other chunks.
-    const auto candidate = std::find_if(
-        chunks_.begin(), chunks_.end(),
-        [chunk](const auto& owned_chunk) { return owned_chunk.get() == chunk; });
+    const auto candidate =
+        std::find_if(chunks_.begin(), chunks_.end(), [chunk](const auto& owned_chunk) {
+            return owned_chunk.get() == chunk;
+        });
     if (candidate != chunks_.end()) {
         chunks_.erase(candidate);
     }
 }
 
-std::size_t ChunkManager::calculate_next_growth(
-    std::size_t current_blocks) const noexcept {
+std::size_t
+ChunkManager::calculate_next_growth(std::size_t current_blocks) const noexcept {
     if (options_.growth.mode == GrowthMode::fixed) {
         return options_.initial_blocks;
     }

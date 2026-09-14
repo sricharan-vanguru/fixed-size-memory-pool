@@ -11,9 +11,8 @@ namespace memory_pool {
 
 /// Combines stable chunk storage with one compile-time exhaustion strategy.
 /// For example, GrowingChunkPool grows whereas NullableChunkPool returns null.
-template <typename ExhaustionPolicy>
-class BasicChunkPool {
-public:
+template <typename ExhaustionPolicy> class BasicChunkPool {
+  public:
     explicit BasicChunkPool(ChunkManagerOptions options,
                             MemoryProviderPtr provider = {},
                             ExhaustionPolicy exhaustion_policy = {})
@@ -58,15 +57,19 @@ public:
         return manager_.chunk_count();
     }
     [[nodiscard]] std::size_t capacity() const noexcept { return manager_.capacity(); }
-    [[nodiscard]] std::size_t available() const noexcept { return manager_.available(); }
+    [[nodiscard]] std::size_t available() const noexcept {
+        return manager_.available();
+    }
     [[nodiscard]] std::size_t in_use() const noexcept { return manager_.in_use(); }
     [[nodiscard]] std::size_t fallback_allocations() const noexcept {
         return exhaustion_policy_.fallback_allocations();
     }
     [[nodiscard]] ChunkManager& chunk_manager() noexcept { return manager_; }
-    [[nodiscard]] const ChunkManager& chunk_manager() const noexcept { return manager_; }
+    [[nodiscard]] const ChunkManager& chunk_manager() const noexcept {
+        return manager_;
+    }
 
-private:
+  private:
     ChunkManager manager_;
     ExhaustionPolicy exhaustion_policy_;
 };

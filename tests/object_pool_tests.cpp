@@ -41,8 +41,7 @@ struct Throwing {
 
 static_assert(!std::is_copy_constructible_v<memory_pool::ObjectPool<int>>);
 static_assert(!std::is_move_constructible_v<memory_pool::ObjectPool<int>>);
-static_assert(
-    std::is_same_v<memory_pool::ObjectPool<int>::value_type, int>);
+static_assert(std::is_same_v<memory_pool::ObjectPool<int>::value_type, int>);
 
 void typed_creation_and_capacity(TestContext& test) {
     memory_pool::ObjectPool<Tracked> pool(2, diagnostic_options(true));
@@ -129,9 +128,8 @@ void exception_unwinding(TestContext& test) {
 void smart_pointer_exhaustion(TestContext& test) {
     memory_pool::ObjectPool<Tracked> pool(1);
     auto first = pool.make_unique(1);
-    test.expect_throws<std::bad_alloc>(
-        [&] { static_cast<void>(pool.make_unique(2)); },
-        "make_unique should report pool exhaustion");
+    test.expect_throws<std::bad_alloc>([&] { static_cast<void>(pool.make_unique(2)); },
+                                       "make_unique should report pool exhaustion");
 }
 
 }  // namespace

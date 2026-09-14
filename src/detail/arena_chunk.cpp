@@ -10,23 +10,17 @@ namespace memory_pool::detail {
 ArenaChunk::ArenaChunk(std::size_t capacity,
                        std::size_t alignment,
                        MemoryProviderPtr provider)
-    : provider_(std::move(provider)),
-      capacity_(capacity),
-      alignment_(alignment) {
+    : provider_(std::move(provider)), capacity_(capacity), alignment_(alignment) {
     if (provider_ == nullptr) {
         throw std::invalid_argument("arena chunk provider must not be null");
     }
-    storage_ = static_cast<std::byte*>(
-        provider_->allocate(capacity_, alignment_));
+    storage_ = static_cast<std::byte*>(provider_->allocate(capacity_, alignment_));
 }
 
-ArenaChunk::~ArenaChunk() {
-    provider_->deallocate(storage_, capacity_, alignment_);
-}
+ArenaChunk::~ArenaChunk() { provider_->deallocate(storage_, capacity_, alignment_); }
 
-std::optional<ArenaAllocation> ArenaChunk::try_allocate(
-    std::size_t size,
-    std::size_t alignment) noexcept {
+std::optional<ArenaAllocation>
+ArenaChunk::try_allocate(std::size_t size, std::size_t alignment) noexcept {
     if (alignment > alignment_ || offset_ > capacity_) {
         return std::nullopt;
     }

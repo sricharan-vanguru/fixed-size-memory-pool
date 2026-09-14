@@ -19,15 +19,14 @@ bool is_power_of_two(std::size_t value) noexcept {
 
 MonotonicArenaOptions validate_options(MonotonicArenaOptions options) {
     if (options.initial_chunk_size == 0) {
-        throw std::invalid_argument(
-            "initial_chunk_size must be greater than zero");
+        throw std::invalid_argument("initial_chunk_size must be greater than zero");
     }
     if (!is_power_of_two(options.initial_alignment)) {
         throw std::invalid_argument(
             "initial_alignment must be a non-zero power of two");
     }
-    options.initial_alignment = std::max(
-        options.initial_alignment, alignof(std::max_align_t));
+    options.initial_alignment =
+        std::max(options.initial_alignment, alignof(std::max_align_t));
 
     if (options.growth.mode == ArenaGrowthMode::geometric &&
         options.growth.factor < 2) {
@@ -67,15 +66,14 @@ struct MonotonicArena::Impl {
           provider(memory_provider != nullptr
                        ? std::move(memory_provider)
                        : std::make_shared<NewDeleteMemoryProvider>()),
-          next_chunk_size(calculate_next_chunk_size(
-              options.initial_chunk_size)) {
+          next_chunk_size(calculate_next_chunk_size(options.initial_chunk_size)) {
         add_chunk(options.initial_chunk_size, options.initial_alignment);
     }
 
     ~Impl() { destroy_registered_objects(); }
 
-    [[nodiscard]] std::size_t calculate_next_chunk_size(
-        std::size_t current_size) const noexcept {
+    [[nodiscard]] std::size_t
+    calculate_next_chunk_size(std::size_t current_size) const noexcept {
         if (options.growth.mode == ArenaGrowthMode::fixed) {
             return options.initial_chunk_size;
         }
@@ -87,28 +85,25 @@ struct MonotonicArena::Impl {
         if (current_size >
             std::numeric_limits<std::size_t>::max() / options.growth.factor) {
             // Saturate instead of allowing multiplication to wrap around.
-            return maximum != 0 ? maximum
-                                : std::numeric_limits<std::size_t>::max();
+            return maximum != 0 ? maximum : std::numeric_limits<std::size_t>::max();
         }
         const std::size_t next = current_size * options.growth.factor;
         return maximum != 0 ? std::min(next, maximum) : next;
     }
 
-    detail::ArenaChunk& add_chunk(std::size_t capacity,
-                                  std::size_t alignment) {
-        auto chunk = std::make_unique<detail::ArenaChunk>(
-            capacity, alignment, provider);
+    detail::ArenaChunk& add_chunk(std::size_t capacity, std::size_t alignment) {
+        auto chunk =
+            std::make_unique<detail::ArenaChunk>(capacity, alignment, provider);
         detail::ArenaChunk& result = *chunk;
         chunks.push_back(std::move(chunk));
 
         ++statistics.chunk_allocations;
         statistics.current_chunks = chunks.size();
-        statistics.peak_chunks = std::max(
-            statistics.peak_chunks, statistics.current_chunks);
+        statistics.peak_chunks =
+            std::max(statistics.peak_chunks, statistics.current_chunks);
         statistics.current_reserved_bytes += capacity;
-        statistics.peak_reserved_bytes = std::max(
-            statistics.peak_reserved_bytes,
-            statistics.current_reserved_bytes);
+        statistics.peak_reserved_bytes =
+            std::max(statistics.peak_reserved_bytes, statistics.current_reserved_bytes);
         return result;
     }
 
@@ -118,8 +113,8 @@ struct MonotonicArena::Impl {
         ++statistics.successful_allocations;
         statistics.requested_bytes += requested_size;
         statistics.current_used_bytes += allocation.consumed_bytes;
-        statistics.peak_used_bytes = std::max(
-            statistics.peak_used_bytes, statistics.current_used_bytes);
+        statistics.peak_used_bytes =
+            std::max(statistics.peak_used_bytes, statistics.current_used_bytes);
         statistics.padding_bytes += allocation.consumed_bytes - requested_size;
         last_allocation = LastAllocation{
             .chunk = &chunk,
@@ -153,8 +148,8 @@ struct MonotonicArena::Impl {
             // Oversized requests get a fitting chunk even when larger than the
             // configured geometric-growth cap.
             const std::size_t capacity = std::max(next_chunk_size, request_size);
-            const std::size_t chunk_alignment = std::max(
-                options.initial_alignment, alignment);
+            const std::size_t chunk_alignment =
+                std::max(options.initial_alignment, alignment);
             detail::ArenaChunk& chunk = add_chunk(capacity, chunk_alignment);
             current_chunk = chunks.size() - 1;
             next_chunk_size = calculate_next_chunk_size(next_chunk_size);
@@ -224,15 +219,13 @@ struct MonotonicArena::Impl {
             chunks.erase(chunks.begin() + 1, chunks.end());
             statistics.current_chunks = 1;
         }
-        next_chunk_size = calculate_next_chunk_size(
-            options.initial_chunk_size);
+        next_chunk_size = calculate_next_chunk_size(options.initial_chunk_size);
     }
 
     [[nodiscard]] bool owns(const void* pointer) const noexcept {
-        return std::any_of(
-            chunks.begin(), chunks.end(), [pointer](const auto& chunk) {
-                return chunk->owns(pointer);
-            });
+        return std::any_of(chunks.begin(), chunks.end(), [pointer](const auto& chunk) {
+            return chunk->owns(pointer);
+        });
     }
 
     MonotonicArenaOptions options;

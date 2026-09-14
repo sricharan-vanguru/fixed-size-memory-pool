@@ -6,7 +6,7 @@
 #include <utility>
 
 class TestContext {
-public:
+  public:
     // Tests continue after a failed expectation so one run can report several
     // independent problems without an external test framework dependency.
     void expect(bool condition, const char* message) {
@@ -34,7 +34,7 @@ public:
 
     [[nodiscard]] int failures() const noexcept { return failures_; }
 
-private:
+  private:
     int failures_{};
 };
 

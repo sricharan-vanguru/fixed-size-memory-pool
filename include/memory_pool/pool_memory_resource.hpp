@@ -13,7 +13,7 @@ namespace memory_pool {
 /// resource must be destroyed before the resource, and the upstream resource
 /// must outlive this object.
 class PoolMemoryResource final : public std::pmr::memory_resource {
-public:
+  public:
     explicit PoolMemoryResource(
         SegregatedAllocatorOptions options = {},
         std::pmr::memory_resource* upstream = std::pmr::get_default_resource());
@@ -27,14 +27,12 @@ public:
     [[nodiscard]] std::pmr::memory_resource* upstream_resource() const noexcept;
     [[nodiscard]] const SegregatedAllocatorStatistics& statistics() const noexcept;
 
-private:
-    [[nodiscard]] void* do_allocate(std::size_t bytes,
-                                    std::size_t alignment) override;
-    void do_deallocate(void* pointer,
-                       std::size_t bytes,
-                       std::size_t alignment) override;
-    [[nodiscard]] bool do_is_equal(
-        const std::pmr::memory_resource& other) const noexcept override;
+  private:
+    [[nodiscard]] void* do_allocate(std::size_t bytes, std::size_t alignment) override;
+    void
+    do_deallocate(void* pointer, std::size_t bytes, std::size_t alignment) override;
+    [[nodiscard]] bool
+    do_is_equal(const std::pmr::memory_resource& other) const noexcept override;
 
     struct Impl;
     std::unique_ptr<Impl> impl_;

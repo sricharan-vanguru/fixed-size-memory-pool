@@ -60,8 +60,8 @@ struct SegregatedAllocator::Impl {
         }
     }
 
-    [[nodiscard]] std::optional<std::size_t> owning_class(
-        const void* pointer) const noexcept {
+    [[nodiscard]] std::optional<std::size_t>
+    owning_class(const void* pointer) const noexcept {
         for (std::size_t index = 0; index < pools.size(); ++index) {
             if (pools[index]->owns(pointer)) {
                 return index;
@@ -98,8 +98,7 @@ void* SegregatedAllocator::allocate(std::size_t size, std::size_t alignment) {
             ++class_statistics.successful_allocations;
             ++class_statistics.currently_allocated;
             class_statistics.peak_allocated = std::max(
-                class_statistics.peak_allocated,
-                class_statistics.currently_allocated);
+                class_statistics.peak_allocated, class_statistics.currently_allocated);
             class_statistics.requested_bytes += requested_size;
             class_statistics.served_bytes += class_statistics.class_size;
             class_statistics.internal_fragmentation_bytes +=
@@ -112,12 +111,12 @@ void* SegregatedAllocator::allocate(std::size_t size, std::size_t alignment) {
         // metadata is required because the provider needs it during release.
         void* const pointer = impl_->provider->allocate(requested_size, alignment);
         try {
-            const auto [allocation, inserted] = impl_->fallback_allocations.emplace(
-                pointer,
-                Impl::FallbackAllocation{
-                    .size = requested_size,
-                    .alignment = alignment,
-                });
+            const auto [allocation, inserted] =
+                impl_->fallback_allocations.emplace(pointer,
+                                                    Impl::FallbackAllocation{
+                                                        .size = requested_size,
+                                                        .alignment = alignment,
+                                                    });
             static_cast<void>(allocation);
             if (!inserted) {
                 throw std::logic_error(
@@ -133,9 +132,9 @@ void* SegregatedAllocator::allocate(std::size_t size, std::size_t alignment) {
         ++impl_->statistics.successful_allocations;
         ++impl_->statistics.fallback_allocations;
         ++impl_->statistics.current_fallback_allocations;
-        impl_->statistics.peak_fallback_allocations = std::max(
-            impl_->statistics.peak_fallback_allocations,
-            impl_->statistics.current_fallback_allocations);
+        impl_->statistics.peak_fallback_allocations =
+            std::max(impl_->statistics.peak_fallback_allocations,
+                     impl_->statistics.current_fallback_allocations);
         impl_->statistics.fallback_requested_bytes += requested_size;
         return pointer;
     } catch (...) {
@@ -153,8 +152,7 @@ void SegregatedAllocator::deallocate(void* pointer) {
     // discovers the owner by examining stable chunk ranges.
     if (const auto owner = impl_->owning_class(pointer); owner.has_value()) {
         impl_->pools[*owner]->deallocate(pointer);
-        SizeClassStatistics& class_statistics =
-            impl_->statistics.size_classes[*owner];
+        SizeClassStatistics& class_statistics = impl_->statistics.size_classes[*owner];
         ++class_statistics.deallocations;
         --class_statistics.currently_allocated;
         ++impl_->statistics.deallocations;
@@ -210,8 +208,8 @@ bool SegregatedAllocator::owns(const void* pointer) const noexcept {
            impl_->fallback_allocations.contains(const_cast<void*>(pointer));
 }
 
-std::optional<std::size_t> SegregatedAllocator::owning_size_class(
-    const void* pointer) const noexcept {
+std::optional<std::size_t>
+SegregatedAllocator::owning_size_class(const void* pointer) const noexcept {
     const auto owner = impl_->owning_class(pointer);
     return owner.has_value()
                ? std::optional<std::size_t>{impl_->selector.class_size(*owner)}

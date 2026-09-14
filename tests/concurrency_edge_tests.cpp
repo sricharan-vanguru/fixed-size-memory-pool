@@ -19,8 +19,8 @@ namespace concurrency_edge_tests {
 namespace {
 
 // Adversarial races and boundary configurations supplement the normal suite.
-memory_pool::SegregatedAllocatorOptions single_class_options(
-    std::size_t initial_blocks = 16) {
+memory_pool::SegregatedAllocatorOptions
+single_class_options(std::size_t initial_blocks = 16) {
     return memory_pool::SegregatedAllocatorOptions{
         .size_classes = {64},
         .initial_blocks_per_class = initial_blocks,
@@ -38,9 +38,8 @@ memory_pool::ThreadCacheOptions small_cache_options() {
 }
 
 class FailAfterInitialProvider final : public memory_pool::IMemoryProvider {
-public:
-    [[nodiscard]] void* allocate(std::size_t bytes,
-                                 std::size_t alignment) override {
+  public:
+    [[nodiscard]] void* allocate(std::size_t bytes, std::size_t alignment) override {
         if (allocation_calls_.fetch_add(1, std::memory_order_relaxed) != 0) {
             throw std::bad_alloc{};
         }
@@ -53,7 +52,7 @@ public:
         delegate_.deallocate(memory, bytes, alignment);
     }
 
-private:
+  private:
     std::atomic<std::size_t> allocation_calls_{};
     memory_pool::NewDeleteMemoryProvider delegate_;
 };
@@ -82,8 +81,8 @@ void extreme_configuration_and_invalid_inputs(TestContext& test) {
         [&] { synchronized.deallocate(&external); },
         "the synchronized wrapper should reject foreign pointers");
 
-    memory_pool::ThreadCachedAllocator cached(
-        single_class_options(), small_cache_options());
+    memory_pool::ThreadCachedAllocator cached(single_class_options(),
+                                              small_cache_options());
     void* const cached_zero = cached.allocate(0, 8);
     cached.deallocate(cached_zero, 0, 8);
     cached.deallocate(nullptr);
@@ -116,14 +115,14 @@ void partial_refill_failure(TestContext& test) {
     static_cast<void>(allocator.release_current_thread_cache());
     const auto after_release = allocator.statistics();
     test.expect(after_release.central_allocations ==
-                    after_release.central_deallocations &&
+                        after_release.central_deallocations &&
                     after_release.live_allocations == 0,
                 "partial refill failure should preserve ownership balance");
 }
 
 void simultaneous_double_free(TestContext& test) {
-    memory_pool::ThreadCachedAllocator allocator(
-        single_class_options(), small_cache_options());
+    memory_pool::ThreadCachedAllocator allocator(single_class_options(),
+                                                 small_cache_options());
     void* const pointer = allocator.allocate(32, 8);
     std::barrier start_line(3);
     std::atomic<std::size_t> successes{};
@@ -160,8 +159,8 @@ void simultaneous_double_free(TestContext& test) {
 }
 
 void owner_thread_exit_with_live_allocation(TestContext& test) {
-    memory_pool::ThreadCachedAllocator allocator(
-        single_class_options(), small_cache_options());
+    memory_pool::ThreadCachedAllocator allocator(single_class_options(),
+                                                 small_cache_options());
     void* pointer = nullptr;
 
     std::thread owner([&] { pointer = allocator.allocate(32, 8); });
@@ -172,16 +171,15 @@ void owner_thread_exit_with_live_allocation(TestContext& test) {
     allocator.deallocate(pointer, 32, 8);
     const auto statistics = allocator.statistics();
     test.expect(statistics.remote_deallocations == 1 &&
-                    statistics.live_allocations == 0 &&
-                    statistics.cached_blocks == 0,
+                    statistics.live_allocations == 0 && statistics.cached_blocks == 0,
                 "a later thread should safely return an exited owner's live block");
 }
 
 void multiple_allocator_tls_isolation(TestContext& test) {
-    memory_pool::ThreadCachedAllocator first(
-        single_class_options(), small_cache_options());
-    memory_pool::ThreadCachedAllocator second(
-        single_class_options(), small_cache_options());
+    memory_pool::ThreadCachedAllocator first(single_class_options(),
+                                             small_cache_options());
+    memory_pool::ThreadCachedAllocator second(single_class_options(),
+                                              small_cache_options());
     void* const first_pointer = first.allocate(32, 8);
     void* const second_pointer = second.allocate(32, 8);
     first.deallocate(first_pointer, 32, 8);
@@ -208,10 +206,9 @@ void all_size_classes_under_contention(TestContext& test) {
     memory_pool::ThreadCachedAllocator allocator(
         options, {.low_watermark = 2, .high_watermark = 8, .refill_batch = 4});
     constexpr std::array<std::size_t, 22> sizes{
-        0, 1, 8, 9, 16, 17, 32, 33, 64, 65, 128,
+        0,   1,   8,   9,   16,  17,   32,   33,   64,   65,   128,
         129, 256, 257, 512, 513, 1024, 1025, 2048, 2049, 4096, 4097};
-    constexpr std::array<std::size_t, 7> alignments{
-        1, 8, 16, 64, 256, 4096, 8192};
+    constexpr std::array<std::size_t, 7> alignments{1, 8, 16, 64, 256, 4096, 8192};
     constexpr std::size_t thread_count = 8;
     constexpr std::size_t rounds = 50;
     std::atomic<bool> failed{false};
@@ -241,10 +238,10 @@ void all_size_classes_under_contention(TestContext& test) {
 
     const auto cache_statistics = allocator.statistics();
     const auto central_statistics = allocator.central_statistics();
-    const bool every_class_used = std::all_of(
-        central_statistics.size_classes.begin(),
-        central_statistics.size_classes.end(),
-        [](const auto& entry) { return entry.successful_allocations > 0; });
+    const bool every_class_used =
+        std::all_of(central_statistics.size_classes.begin(),
+                    central_statistics.size_classes.end(),
+                    [](const auto& entry) { return entry.successful_allocations > 0; });
     test.expect(!failed.load(std::memory_order_relaxed) && every_class_used,
                 "concurrent requests should exercise every configured size class");
     test.expect(central_statistics.fallback_allocations > 0,
@@ -255,8 +252,8 @@ void all_size_classes_under_contention(TestContext& test) {
 }
 
 void concurrent_inspection(TestContext& test) {
-    memory_pool::ThreadCachedAllocator cached(
-        single_class_options(), small_cache_options());
+    memory_pool::ThreadCachedAllocator cached(single_class_options(),
+                                              small_cache_options());
     void* const stable = cached.allocate(32, 8);
     std::atomic<std::size_t> running_workers{4};
     std::atomic<bool> failed{false};
@@ -278,8 +275,7 @@ void concurrent_inspection(TestContext& test) {
 
     std::thread observer([&] {
         while (running_workers.load(std::memory_order_acquire) != 0) {
-            if (!cached.owns(stable) ||
-                cached.owning_size_class(stable) != 64) {
+            if (!cached.owns(stable) || cached.owning_size_class(stable) != 64) {
                 failed.store(true, std::memory_order_relaxed);
             }
             static_cast<void>(cached.statistics());
@@ -326,8 +322,8 @@ void concurrent_inspection(TestContext& test) {
 }
 
 void concurrent_unsized_remote_deallocation(TestContext& test) {
-    memory_pool::ThreadCachedAllocator allocator(
-        single_class_options(64), small_cache_options());
+    memory_pool::ThreadCachedAllocator allocator(single_class_options(64),
+                                                 small_cache_options());
     constexpr std::size_t allocation_count = 512;
     constexpr std::size_t thread_count = 8;
     std::vector<void*> allocations;
@@ -359,8 +355,7 @@ void concurrent_unsized_remote_deallocation(TestContext& test) {
     test.expect(!failed.load(std::memory_order_relaxed) &&
                     statistics.remote_deallocations == allocation_count,
                 "unsized remote frees should route safely to central storage");
-    test.expect(statistics.live_allocations == 0 &&
-                    statistics.cached_blocks == 0,
+    test.expect(statistics.live_allocations == 0 && statistics.cached_blocks == 0,
                 "unsized remote-free cleanup should leave no retained blocks");
 }
 
@@ -371,8 +366,8 @@ void oversubscribed_stress(TestContext& test) {
     const std::size_t hardware_threads = std::thread::hardware_concurrency();
     const std::size_t doubled_threads =
         hardware_threads > 16 ? 32 : hardware_threads * 2;
-    const std::size_t thread_count = std::min<std::size_t>(
-        32, std::max<std::size_t>(16, doubled_threads));
+    const std::size_t thread_count =
+        std::min<std::size_t>(32, std::max<std::size_t>(16, doubled_threads));
     constexpr std::size_t operations_per_thread = 10'000;
     std::atomic<bool> failed{false};
     std::vector<std::thread> workers;
@@ -380,8 +375,7 @@ void oversubscribed_stress(TestContext& test) {
     for (std::size_t thread = 0; thread < thread_count; ++thread) {
         workers.emplace_back([&, thread] {
             try {
-                for (std::size_t operation = 0;
-                     operation < operations_per_thread;
+                for (std::size_t operation = 0; operation < operations_per_thread;
                      ++operation) {
                     const std::size_t size = 1 + ((operation + thread) % 64);
                     void* const pointer = allocator.allocate(size, 8);
@@ -402,9 +396,8 @@ void oversubscribed_stress(TestContext& test) {
     test.expect(!failed.load(std::memory_order_relaxed),
                 "oversubscribed thread-cache stress should complete without errors");
     test.expect(statistics.allocation_requests ==
-                    thread_count * operations_per_thread &&
-                    statistics.live_allocations == 0 &&
-                    statistics.cached_blocks == 0,
+                        thread_count * operations_per_thread &&
+                    statistics.live_allocations == 0 && statistics.cached_blocks == 0,
                 "oversubscribed workers should finish with balanced logical state");
 }
 

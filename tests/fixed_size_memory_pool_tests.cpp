@@ -45,7 +45,8 @@ void exhaustion_and_reuse(TestContext& test) {
     test.expect(pool.allocate() == nullptr, "an exhausted pool should return nullptr");
     test.expect(pool.available() == 0, "available count should reach zero");
     pool.deallocate(second);
-    test.expect(pool.allocate() == second, "the released block should be reused in O(1)");
+    test.expect(pool.allocate() == second,
+                "the released block should be reused in O(1)");
 }
 
 void lifetime_management(TestContext& test) {
@@ -78,7 +79,8 @@ void alignment(TestContext& test) {
     std::vector<void*> blocks;
     for (std::size_t index = 0; index < pool.capacity(); ++index) {
         void* pointer = pool.allocate();
-        test.expect(reinterpret_cast<std::uintptr_t>(pointer) % requested_alignment == 0,
+        test.expect(reinterpret_cast<std::uintptr_t>(pointer) % requested_alignment ==
+                        0,
                     "every block should satisfy the requested alignment");
         blocks.push_back(pointer);
     }
@@ -129,7 +131,8 @@ void pointer_validation(TestContext& test) {
 
     void* block = pool.allocate();
     auto* interior = static_cast<std::byte*>(block) + 1;
-    test.expect(!pool.is_block_start(interior), "an interior pointer is not a block start");
+    test.expect(!pool.is_block_start(interior),
+                "an interior pointer is not a block start");
     test.expect_throws<memory_pool::InvalidPoolPointer>(
         [&] { pool.deallocate(interior); }, "an interior pointer should be rejected");
     pool.deallocate(block);
@@ -167,8 +170,8 @@ void lifo_reuse(TestContext& test) {
 }
 
 void multiple_non_trivial_objects(TestContext& test) {
-    memory_pool::FixedSizeMemoryPool pool(sizeof(Tracked), 3, alignof(Tracked),
-                                          diagnostic_options());
+    memory_pool::FixedSizeMemoryPool pool(
+        sizeof(Tracked), 3, alignof(Tracked), diagnostic_options());
     Tracked* first = pool.create<Tracked>(1);
     Tracked* second = pool.create<Tracked>(2);
     Tracked* third = pool.create<Tracked>(3);

@@ -10,8 +10,7 @@
 namespace memory_pool {
 namespace {
 
-std::pmr::memory_resource* validate_upstream(
-    std::pmr::memory_resource* upstream) {
+std::pmr::memory_resource* validate_upstream(std::pmr::memory_resource* upstream) {
     if (upstream == nullptr) {
         throw std::invalid_argument("upstream memory resource must not be null");
     }
@@ -19,12 +18,11 @@ std::pmr::memory_resource* validate_upstream(
 }
 
 class PmrUpstreamProvider final : public IMemoryProvider {
-public:
+  public:
     explicit PmrUpstreamProvider(std::pmr::memory_resource* upstream)
         : upstream_(validate_upstream(upstream)) {}
 
-    [[nodiscard]] void* allocate(std::size_t bytes,
-                                 std::size_t alignment) override {
+    [[nodiscard]] void* allocate(std::size_t bytes, std::size_t alignment) override {
         return upstream_->allocate(bytes, alignment);
     }
 
@@ -34,7 +32,7 @@ public:
         upstream_->deallocate(memory, bytes, alignment);
     }
 
-private:
+  private:
     // PMR resources are conventionally non-owning dependencies. The public
     // PoolMemoryResource documents that this pointer must outlive it.
     std::pmr::memory_resource* upstream_;
@@ -54,9 +52,8 @@ struct PoolMemoryResource::Impl {
     SegregatedAllocator allocator;
 };
 
-PoolMemoryResource::PoolMemoryResource(
-    SegregatedAllocatorOptions options,
-    std::pmr::memory_resource* upstream)
+PoolMemoryResource::PoolMemoryResource(SegregatedAllocatorOptions options,
+                                       std::pmr::memory_resource* upstream)
     : impl_(std::make_unique<Impl>(std::move(options), upstream)) {}
 
 PoolMemoryResource::~PoolMemoryResource() = default;

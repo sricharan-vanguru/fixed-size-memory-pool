@@ -11,14 +11,12 @@ namespace memory_pool {
 
 /// Type-safe object-lifetime facade over FixedSizeMemoryPool.
 /// The pool must outlive every raw pointer and PoolPtr created from it.
-template <typename T>
-class ObjectPool {
-    static_assert(std::is_object_v<T> && !std::is_array_v<T> &&
-                      !std::is_const_v<T> && !std::is_volatile_v<T> &&
-                      std::is_destructible_v<T>,
+template <typename T> class ObjectPool {
+    static_assert(std::is_object_v<T> && !std::is_array_v<T> && !std::is_const_v<T> &&
+                      !std::is_volatile_v<T> && std::is_destructible_v<T>,
                   "ObjectPool requires a destructible, non-cv object type");
 
-public:
+  public:
     using value_type = T;
 
     explicit ObjectPool(std::size_t capacity, PoolOptions options = {})
@@ -29,18 +27,15 @@ public:
     ObjectPool(ObjectPool&&) = delete;
     ObjectPool& operator=(ObjectPool&&) = delete;
 
-    template <typename... Args>
-    [[nodiscard]] T* create(Args&&... args) & {
+    template <typename... Args> [[nodiscard]] T* create(Args&&... args) & {
         return pool_.create<T>(std::forward<Args>(args)...);
     }
 
-    template <typename... Args>
-    [[nodiscard]] T* create(Args&&...) && = delete;
+    template <typename... Args> [[nodiscard]] T* create(Args&&...) && = delete;
 
     void destroy(T* object) { pool_.destroy(object); }
 
-    template <typename... Args>
-    [[nodiscard]] PoolPtr<T> make_unique(Args&&... args) & {
+    template <typename... Args> [[nodiscard]] PoolPtr<T> make_unique(Args&&... args) & {
         // The custom deleter remembers the originating pool; it does not own it.
         T* const object = create(std::forward<Args>(args)...);
         return PoolPtr<T>{object, PoolDeleter<T>{pool_}};
@@ -49,7 +44,9 @@ public:
     template <typename... Args>
     [[nodiscard]] PoolPtr<T> make_unique(Args&&...) && = delete;
 
-    [[nodiscard]] bool owns(const T* object) const noexcept { return pool_.owns(object); }
+    [[nodiscard]] bool owns(const T* object) const noexcept {
+        return pool_.owns(object);
+    }
     [[nodiscard]] std::size_t capacity() const noexcept { return pool_.capacity(); }
     [[nodiscard]] std::size_t available() const noexcept { return pool_.available(); }
     [[nodiscard]] std::size_t in_use() const noexcept { return pool_.in_use(); }
@@ -60,7 +57,7 @@ public:
         return pool_.statistics();
     }
 
-private:
+  private:
     FixedSizeMemoryPool pool_;
 };
 

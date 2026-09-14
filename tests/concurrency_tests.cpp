@@ -20,8 +20,8 @@ namespace concurrency_tests {
 namespace {
 
 // Shared correctness, cache batching, remote frees, and thread-exit cleanup.
-memory_pool::SegregatedAllocatorOptions concurrency_options(
-    std::size_t initial_blocks = 16) {
+memory_pool::SegregatedAllocatorOptions
+concurrency_options(std::size_t initial_blocks = 16) {
     return memory_pool::SegregatedAllocatorOptions{
         .size_classes = {64},
         .initial_blocks_per_class = initial_blocks,
@@ -39,7 +39,7 @@ memory_pool::ThreadCacheOptions small_cache_options() {
 }
 
 class CountingMutex {
-public:
+  public:
     void lock() {
         mutex_.lock();
         lock_calls.fetch_add(1, std::memory_order_relaxed);
@@ -49,16 +49,15 @@ public:
 
     static std::atomic<std::size_t> lock_calls;
 
-private:
+  private:
     std::mutex mutex_;
 };
 
 std::atomic<std::size_t> CountingMutex::lock_calls{};
 
 class FailAfterInitialProvider final : public memory_pool::IMemoryProvider {
-public:
-    [[nodiscard]] void* allocate(std::size_t bytes,
-                                 std::size_t alignment) override {
+  public:
+    [[nodiscard]] void* allocate(std::size_t bytes, std::size_t alignment) override {
         if (allocation_calls.fetch_add(1, std::memory_order_relaxed) != 0) {
             throw std::bad_alloc{};
         }
@@ -71,7 +70,7 @@ public:
         delegate.deallocate(memory, bytes, alignment);
     }
 
-private:
+  private:
     std::atomic<std::size_t> allocation_calls{};
     memory_pool::NewDeleteMemoryProvider delegate;
 };
@@ -86,8 +85,7 @@ void synchronized_shared_use(TestContext& test) {
     for (std::size_t thread = 0; thread < thread_count; ++thread) {
         workers.emplace_back([&, thread] {
             try {
-                for (std::size_t operation = 0;
-                     operation < operations_per_thread;
+                for (std::size_t operation = 0; operation < operations_per_thread;
                      ++operation) {
                     const std::size_t size = 1 + ((operation + thread) % 64);
                     void* const pointer = allocator.allocate(size, 8);
@@ -108,15 +106,14 @@ void synchronized_shared_use(TestContext& test) {
     test.expect(!failed.load(std::memory_order_relaxed),
                 "synchronized allocation should remain valid under contention");
     test.expect(statistics.successful_allocations ==
-                    thread_count * operations_per_thread &&
+                        thread_count * operations_per_thread &&
                     statistics.successful_allocations == statistics.deallocations,
                 "synchronized statistics should be protected by the same lock");
 }
 
 void synchronized_failure_and_lock_policy(TestContext& test) {
     auto provider = std::make_shared<FailAfterInitialProvider>();
-    memory_pool::SynchronizedAllocator allocator(
-        concurrency_options(1), provider);
+    memory_pool::SynchronizedAllocator allocator(concurrency_options(1), provider);
     void* const held = allocator.allocate(64, 8);
     std::atomic<std::size_t> failures{0};
     std::vector<std::thread> workers;
@@ -149,8 +146,8 @@ void synchronized_failure_and_lock_policy(TestContext& test) {
 }
 
 void cache_reuse_and_watermarks(TestContext& test) {
-    memory_pool::ThreadCachedAllocator allocator(
-        concurrency_options(), small_cache_options());
+    memory_pool::ThreadCachedAllocator allocator(concurrency_options(),
+                                                 small_cache_options());
 
     void* const first = allocator.allocate(32, 8);
     allocator.deallocate(first, 32, 8);
@@ -168,8 +165,7 @@ void cache_reuse_and_watermarks(TestContext& test) {
     }
 
     const auto before_release = allocator.statistics();
-    test.expect(before_release.cache_hits > 0 &&
-                    before_release.batch_refills > 0 &&
+    test.expect(before_release.cache_hits > 0 && before_release.batch_refills > 0 &&
                     before_release.batch_flushes > 0,
                 "thread caches should refill and flush in batches at their watermarks");
     const std::size_t released = allocator.release_current_thread_cache();
@@ -198,11 +194,10 @@ void cache_validation(TestContext& test) {
         },
         "a zero refill batch should be rejected");
 
-    memory_pool::ThreadCachedAllocator allocator(
-        concurrency_options(), small_cache_options());
+    memory_pool::ThreadCachedAllocator allocator(concurrency_options(),
+                                                 small_cache_options());
     void* const pointer = allocator.allocate(32, 8);
-    test.expect(allocator.owns(pointer) &&
-                    allocator.owning_size_class(pointer) == 64,
+    test.expect(allocator.owns(pointer) && allocator.owning_size_class(pointer) == 64,
                 "thread-cached ownership should expose the central size class");
     test.expect_throws<memory_pool::AllocationMismatchError>(
         [&] { allocator.deallocate(pointer, 65, 8); },
@@ -215,8 +210,8 @@ void cache_validation(TestContext& test) {
 }
 
 void cross_thread_deallocation(TestContext& test) {
-    memory_pool::ThreadCachedAllocator allocator(
-        concurrency_options(), small_cache_options());
+    memory_pool::ThreadCachedAllocator allocator(concurrency_options(),
+                                                 small_cache_options());
     void* const pointer = allocator.allocate(32, 8);
     std::atomic<bool> failed{false};
 
@@ -233,19 +228,21 @@ void cross_thread_deallocation(TestContext& test) {
     test.expect(!failed.load(std::memory_order_relaxed) &&
                     statistics.remote_deallocations == 1,
                 "a remote free should return directly to synchronized central storage");
-    test.expect(!allocator.owns(pointer),
-                "a remotely freed pointer should no longer have live or cached metadata");
+    test.expect(
+        !allocator.owns(pointer),
+        "a remotely freed pointer should no longer have live or cached metadata");
     static_cast<void>(allocator.release_current_thread_cache());
 }
 
 void fallback_bypasses_thread_cache(TestContext& test) {
-    memory_pool::ThreadCachedAllocator allocator(
-        concurrency_options(), small_cache_options());
+    memory_pool::ThreadCachedAllocator allocator(concurrency_options(),
+                                                 small_cache_options());
     void* const pointer = allocator.allocate(128, 256);
 
-    test.expect(reinterpret_cast<std::uintptr_t>(pointer) % 256 == 0 &&
-                    !allocator.owning_size_class(pointer).has_value(),
-                "large over-aligned requests should preserve central fallback behavior");
+    test.expect(
+        reinterpret_cast<std::uintptr_t>(pointer) % 256 == 0 &&
+            !allocator.owning_size_class(pointer).has_value(),
+        "large over-aligned requests should preserve central fallback behavior");
     test.expect_throws<memory_pool::AllocationMismatchError>(
         [&] { allocator.deallocate(pointer, 128, 128); },
         "thread-cached fallback deallocation should require exact metadata");
@@ -253,15 +250,14 @@ void fallback_bypasses_thread_cache(TestContext& test) {
     std::thread consumer([&] { allocator.deallocate(pointer, 128, 256); });
     consumer.join();
     const auto statistics = allocator.statistics();
-    test.expect(statistics.remote_deallocations == 1 &&
-                    statistics.cached_blocks == 0 &&
+    test.expect(statistics.remote_deallocations == 1 && statistics.cached_blocks == 0 &&
                     statistics.live_allocations == 0,
                 "remote fallback frees should bypass local caches");
 }
 
 void thread_exit_cleanup(TestContext& test) {
-    memory_pool::ThreadCachedAllocator allocator(
-        concurrency_options(), small_cache_options());
+    memory_pool::ThreadCachedAllocator allocator(concurrency_options(),
+                                                 small_cache_options());
 
     std::thread worker([&] {
         void* const pointer = allocator.allocate(32, 8);
@@ -270,11 +266,9 @@ void thread_exit_cleanup(TestContext& test) {
     worker.join();
 
     const auto statistics = allocator.statistics();
-    test.expect(statistics.cached_blocks == 0 &&
-                    statistics.live_allocations == 0,
+    test.expect(statistics.cached_blocks == 0 && statistics.live_allocations == 0,
                 "thread shutdown should flush its local cache automatically");
-    test.expect(statistics.central_allocations ==
-                    statistics.central_deallocations,
+    test.expect(statistics.central_allocations == statistics.central_deallocations,
                 "thread-exit cleanup should balance central allocations");
 }
 
@@ -302,8 +296,7 @@ void remote_free_stress(TestContext& test) {
                      index += thread_count) {
                     allocator.deallocate(remote_allocations[index], 32, 8);
                 }
-                for (std::size_t operation = 0;
-                     operation < local_operations;
+                for (std::size_t operation = 0; operation < local_operations;
                      ++operation) {
                     void* const pointer = allocator.allocate(32, 8);
                     *static_cast<std::uint64_t*>(pointer) = operation;
@@ -326,10 +319,8 @@ void remote_free_stress(TestContext& test) {
                 "every producer-owned allocation should be counted as a remote free");
     test.expect(statistics.cache_hits > 0,
                 "the stress workload should exercise local cache hits");
-    test.expect(statistics.live_allocations == 0 &&
-                    statistics.cached_blocks == 0 &&
-                    statistics.central_allocations ==
-                        statistics.central_deallocations,
+    test.expect(statistics.live_allocations == 0 && statistics.cached_blocks == 0 &&
+                    statistics.central_allocations == statistics.central_deallocations,
                 "stress cleanup should return all blocks to central storage");
 }
 

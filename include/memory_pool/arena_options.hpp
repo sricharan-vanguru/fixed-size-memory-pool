@@ -19,14 +19,12 @@ struct ArenaGrowthPolicy {
     std::size_t maximum_chunk_size{1024 * 1024};
 
     [[nodiscard]] static constexpr ArenaGrowthPolicy fixed() noexcept {
-        return {.mode = ArenaGrowthMode::fixed,
-                .factor = 1,
-                .maximum_chunk_size = 0};
+        return {.mode = ArenaGrowthMode::fixed, .factor = 1, .maximum_chunk_size = 0};
     }
 
-    [[nodiscard]] static constexpr ArenaGrowthPolicy geometric(
-        std::size_t growth_factor = 2,
-        std::size_t maximum_size = 1024 * 1024) noexcept {
+    [[nodiscard]] static constexpr ArenaGrowthPolicy
+    geometric(std::size_t growth_factor = 2,
+              std::size_t maximum_size = 1024 * 1024) noexcept {
         return {.mode = ArenaGrowthMode::geometric,
                 .factor = growth_factor,
                 .maximum_chunk_size = maximum_size};

@@ -32,19 +32,16 @@ ThreadCacheOptions validate_cache_options(ThreadCacheOptions options) {
             "high_watermark is too large to reserve cache overflow space");
     }
     if (options.low_watermark > options.high_watermark) {
-        throw std::invalid_argument(
-            "low_watermark cannot exceed high_watermark");
+        throw std::invalid_argument("low_watermark cannot exceed high_watermark");
     }
-    if (options.refill_batch == 0 ||
-        options.refill_batch > options.high_watermark) {
+    if (options.refill_batch == 0 || options.refill_batch > options.high_watermark) {
         throw std::invalid_argument(
             "refill_batch must be between one and high_watermark");
     }
     return options;
 }
 
-void update_peak(std::atomic<std::size_t>& peak,
-                 std::size_t candidate) noexcept {
+void update_peak(std::atomic<std::size_t>& peak, std::size_t candidate) noexcept {
     // Relaxed ordering is enough: counters provide telemetry, not synchronization.
     std::size_t observed = peak.load(std::memory_order_relaxed);
     while (observed < candidate &&
@@ -61,10 +58,9 @@ std::size_t normalized_size(std::size_t size) noexcept {
 
 }  // namespace
 
-ThreadCacheState::ThreadCacheState(
-    SegregatedAllocatorOptions allocator_options,
-    ThreadCacheOptions cache_options,
-    MemoryProviderPtr provider)
+ThreadCacheState::ThreadCacheState(SegregatedAllocatorOptions allocator_options,
+                                   ThreadCacheOptions cache_options,
+                                   MemoryProviderPtr provider)
     : id_(next_allocator_id.fetch_add(1, std::memory_order_relaxed)),
       cache_options_(validate_cache_options(cache_options)),
       selector_(allocator_options.size_classes),
@@ -80,21 +76,20 @@ std::size_t ThreadCacheState::cache_capacity() const noexcept {
     return cache_options_.high_watermark + 1;
 }
 
-ThreadCacheState::RecordShard& ThreadCacheState::shard_for(
-    const void* pointer) noexcept {
+ThreadCacheState::RecordShard&
+ThreadCacheState::shard_for(const void* pointer) noexcept {
     const auto address = reinterpret_cast<std::uintptr_t>(pointer);
     // Ignore the low alignment bits, which are commonly identical for blocks.
     return shards_[(address >> 4U) % shard_count];
 }
 
-const ThreadCacheState::RecordShard& ThreadCacheState::shard_for(
-    const void* pointer) const noexcept {
+const ThreadCacheState::RecordShard&
+ThreadCacheState::shard_for(const void* pointer) const noexcept {
     const auto address = reinterpret_cast<std::uintptr_t>(pointer);
     return shards_[(address >> 4U) % shard_count];
 }
 
-void* ThreadCacheState::central_allocate(std::size_t size,
-                                         std::size_t alignment) {
+void* ThreadCacheState::central_allocate(std::size_t size, std::size_t alignment) {
     const std::lock_guard<std::mutex> lock(central_mutex_);
     void* const pointer = central_.allocate(size, alignment);
     statistics_.central_allocations.fetch_add(1, std::memory_order_relaxed);
@@ -115,15 +110,13 @@ void ThreadCacheState::central_deallocate(void* pointer,
     statistics_.central_deallocations.fetch_add(1, std::memory_order_relaxed);
 }
 
-void ThreadCacheState::record_allocation(void* pointer,
-                                         AllocationRecord record) {
+void ThreadCacheState::record_allocation(void* pointer, AllocationRecord record) {
     RecordShard& shard = shard_for(pointer);
     const std::lock_guard<std::mutex> lock(shard.mutex);
     const auto [entry, inserted] = shard.records.emplace(pointer, record);
     static_cast<void>(entry);
     if (!inserted) {
-        throw std::logic_error(
-            "central allocator returned a duplicate live address");
+        throw std::logic_error("central allocator returned a duplicate live address");
     }
 }
 
@@ -204,9 +197,8 @@ void* ThreadCacheState::allocate(CacheBins& bins,
             result = pointer;
         } else {
             bin.push_back(pointer);
-            const std::size_t cached = statistics_.cached_blocks.fetch_add(
-                                           1, std::memory_order_relaxed) +
-                                       1;
+            const std::size_t cached =
+                statistics_.cached_blocks.fetch_add(1, std::memory_order_relaxed) + 1;
             update_peak(statistics_.peak_cached_blocks, cached);
         }
     }
@@ -215,14 +207,12 @@ void* ThreadCacheState::allocate(CacheBins& bins,
     return result;
 }
 
-void ThreadCacheState::validate_sized_deallocation(
-    const AllocationRecord& record,
-    std::size_t size,
-    std::size_t alignment) const {
+void ThreadCacheState::validate_sized_deallocation(const AllocationRecord& record,
+                                                   std::size_t size,
+                                                   std::size_t alignment) const {
     const std::size_t request_size = normalized_size(size);
     if (record.class_index == fallback_class) {
-        if (record.requested_size != request_size ||
-            record.alignment != alignment) {
+        if (record.requested_size != request_size || record.alignment != alignment) {
             throw AllocationMismatchError(
                 "supplied size or alignment does not match the fallback allocation");
         }
@@ -268,8 +258,7 @@ void ThreadCacheState::deallocate(CacheBins& bins,
         }
         shard.records.erase(record);
         if (remote) {
-            statistics_.remote_deallocations.fetch_add(
-                1, std::memory_order_relaxed);
+            statistics_.remote_deallocations.fetch_add(1, std::memory_order_relaxed);
         }
         statistics_.live_allocations.fetch_sub(1, std::memory_order_relaxed);
         return;
@@ -281,9 +270,8 @@ void ThreadCacheState::deallocate(CacheBins& bins,
     record->second.active = false;
     statistics_.local_deallocations.fetch_add(1, std::memory_order_relaxed);
     statistics_.live_allocations.fetch_sub(1, std::memory_order_relaxed);
-    const std::size_t cached = statistics_.cached_blocks.fetch_add(
-                                   1, std::memory_order_relaxed) +
-                               1;
+    const std::size_t cached =
+        statistics_.cached_blocks.fetch_add(1, std::memory_order_relaxed) + 1;
     update_peak(statistics_.peak_cached_blocks, cached);
     record_lock.unlock();
 
@@ -336,16 +324,15 @@ bool ThreadCacheState::owns(const void* pointer) const {
     return shard.records.contains(const_cast<void*>(pointer));
 }
 
-std::optional<std::size_t> ThreadCacheState::owning_size_class(
-    const void* pointer) const {
+std::optional<std::size_t>
+ThreadCacheState::owning_size_class(const void* pointer) const {
     if (pointer == nullptr) {
         return std::nullopt;
     }
     const RecordShard& shard = shard_for(pointer);
     const std::lock_guard<std::mutex> lock(shard.mutex);
     const auto record = shard.records.find(const_cast<void*>(pointer));
-    if (record == shard.records.end() ||
-        record->second.class_index == fallback_class) {
+    if (record == shard.records.end() || record->second.class_index == fallback_class) {
         return std::nullopt;
     }
     return selector_.class_size(record->second.class_index);
@@ -353,28 +340,28 @@ std::optional<std::size_t> ThreadCacheState::owning_size_class(
 
 ThreadCacheStatistics ThreadCacheState::snapshot() const noexcept {
     return {
-        .allocation_requests = statistics_.allocation_requests.load(
-            std::memory_order_relaxed),
-        .deallocation_requests = statistics_.deallocation_requests.load(
-            std::memory_order_relaxed),
+        .allocation_requests =
+            statistics_.allocation_requests.load(std::memory_order_relaxed),
+        .deallocation_requests =
+            statistics_.deallocation_requests.load(std::memory_order_relaxed),
         .cache_hits = statistics_.cache_hits.load(std::memory_order_relaxed),
-        .central_allocations = statistics_.central_allocations.load(
-            std::memory_order_relaxed),
-        .central_deallocations = statistics_.central_deallocations.load(
-            std::memory_order_relaxed),
-        .local_deallocations = statistics_.local_deallocations.load(
-            std::memory_order_relaxed),
-        .remote_deallocations = statistics_.remote_deallocations.load(
-            std::memory_order_relaxed),
+        .central_allocations =
+            statistics_.central_allocations.load(std::memory_order_relaxed),
+        .central_deallocations =
+            statistics_.central_deallocations.load(std::memory_order_relaxed),
+        .local_deallocations =
+            statistics_.local_deallocations.load(std::memory_order_relaxed),
+        .remote_deallocations =
+            statistics_.remote_deallocations.load(std::memory_order_relaxed),
         .batch_refills = statistics_.batch_refills.load(std::memory_order_relaxed),
         .batch_flushes = statistics_.batch_flushes.load(std::memory_order_relaxed),
         .cached_blocks = statistics_.cached_blocks.load(std::memory_order_relaxed),
-        .peak_cached_blocks = statistics_.peak_cached_blocks.load(
-            std::memory_order_relaxed),
-        .live_allocations = statistics_.live_allocations.load(
-            std::memory_order_relaxed),
-        .peak_live_allocations = statistics_.peak_live_allocations.load(
-            std::memory_order_relaxed),
+        .peak_cached_blocks =
+            statistics_.peak_cached_blocks.load(std::memory_order_relaxed),
+        .live_allocations =
+            statistics_.live_allocations.load(std::memory_order_relaxed),
+        .peak_live_allocations =
+            statistics_.peak_live_allocations.load(std::memory_order_relaxed),
     };
 }
 
@@ -384,9 +371,8 @@ SegregatedAllocatorStatistics ThreadCacheState::central_snapshot() const {
 }
 
 void ThreadCacheState::note_live_allocation() noexcept {
-    const std::size_t live = statistics_.live_allocations.fetch_add(
-                                 1, std::memory_order_relaxed) +
-                             1;
+    const std::size_t live =
+        statistics_.live_allocations.fetch_add(1, std::memory_order_relaxed) + 1;
     update_peak(statistics_.peak_live_allocations, live);
 }
 

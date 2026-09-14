@@ -17,7 +17,8 @@ bool DiagnosticState::try_mark_allocated(std::size_t index) noexcept {
 
 void DiagnosticState::mark_free(std::size_t index) {
     if (states_[index] != BlockState::allocated) {
-        throw DoubleFreeError("block is not currently allocated (possible double-free)");
+        throw DoubleFreeError(
+            "block is not currently allocated (possible double-free)");
     }
     states_[index] = BlockState::free;
 }
@@ -30,9 +31,8 @@ const char* DiagnosticState::state_name(std::size_t index) const noexcept {
     return is_allocated(index) ? "allocated" : "free";
 }
 
-void DiagnosticState::validate_free_blocks(
-    const std::vector<std::size_t>& free_indices,
-    std::size_t expected_free_count) const {
+void DiagnosticState::validate_free_blocks(const std::vector<std::size_t>& free_indices,
+                                           std::size_t expected_free_count) const {
     if (free_indices.size() != expected_free_count) {
         throw MemoryCorruptionError("free list length disagrees with available count");
     }
@@ -56,7 +56,8 @@ void DiagnosticState::validate_free_blocks(
     for (std::size_t index = 0; index < states_.size(); ++index) {
         const bool state_is_free = states_[index] == BlockState::free;
         if (state_is_free != seen[index]) {
-            throw MemoryCorruptionError("block state disagrees with free-list membership");
+            throw MemoryCorruptionError(
+                "block state disagrees with free-list membership");
         }
     }
 }

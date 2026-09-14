@@ -12,8 +12,8 @@ int main() {
     // 8192 exceeds the default largest class (4096), so it uses fallback.
     void* large = allocator.allocate(8192, alignof(std::max_align_t));
 
-    std::cout << "24-byte request uses class "
-              << *allocator.owning_size_class(small) << '\n';
+    std::cout << "24-byte request uses class " << *allocator.owning_size_class(small)
+              << '\n';
     std::cout << "48-byte aligned request uses class "
               << *allocator.owning_size_class(aligned) << '\n';
     std::cout << "8192-byte request uses system fallback="

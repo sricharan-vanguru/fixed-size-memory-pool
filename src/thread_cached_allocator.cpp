@@ -32,8 +32,8 @@ struct ThreadCachedAllocator::Impl {
             }
         }
 
-        [[nodiscard]] LocalCache& get(
-            const std::shared_ptr<detail::ThreadCacheState>& state) {
+        [[nodiscard]] LocalCache&
+        get(const std::shared_ptr<detail::ThreadCacheState>& state) {
             auto existing = caches.find(state->id());
             if (existing != caches.end() && !existing->second.state.expired()) {
                 return existing->second;
@@ -51,8 +51,7 @@ struct ThreadCachedAllocator::Impl {
                 existing->second = std::move(replacement);
                 return existing->second;
             }
-            return caches.emplace(state->id(), std::move(replacement))
-                .first->second;
+            return caches.emplace(state->id(), std::move(replacement)).first->second;
         }
 
         [[nodiscard]] std::size_t release(std::uint64_t id) {
@@ -75,9 +74,7 @@ struct ThreadCachedAllocator::Impl {
          ThreadCacheOptions cache_options,
          MemoryProviderPtr provider)
         : state(std::make_shared<detail::ThreadCacheState>(
-              std::move(allocator_options),
-              cache_options,
-              std::move(provider))) {}
+              std::move(allocator_options), cache_options, std::move(provider))) {}
 
     ~Impl() {
         // Release the cache belonging to the thread that destroys the wrapper.
@@ -100,9 +97,8 @@ ThreadCachedAllocator::ThreadCachedAllocator(
     SegregatedAllocatorOptions allocator_options,
     ThreadCacheOptions cache_options,
     MemoryProviderPtr provider)
-    : impl_(std::make_unique<Impl>(std::move(allocator_options),
-                                   cache_options,
-                                   std::move(provider))) {}
+    : impl_(std::make_unique<Impl>(
+          std::move(allocator_options), cache_options, std::move(provider))) {}
 
 ThreadCachedAllocator::~ThreadCachedAllocator() = default;
 
@@ -137,8 +133,8 @@ bool ThreadCachedAllocator::owns(const void* pointer) const {
     return impl_->state->owns(pointer);
 }
 
-std::optional<std::size_t> ThreadCachedAllocator::owning_size_class(
-    const void* pointer) const {
+std::optional<std::size_t>
+ThreadCachedAllocator::owning_size_class(const void* pointer) const {
     return impl_->state->owning_size_class(pointer);
 }
 

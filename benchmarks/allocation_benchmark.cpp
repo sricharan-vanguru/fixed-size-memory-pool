@@ -2,10 +2,10 @@
 
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <iomanip>
 #include <iostream>
 #include <memory>
-#include <cstdint>
 #include <vector>
 
 struct alignas(64) CacheLineObject {

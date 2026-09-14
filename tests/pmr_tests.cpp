@@ -19,9 +19,9 @@ namespace pmr_tests {
 namespace {
 
 // Standard containers, resource identity, upstream behavior, and lifetimes.
-memory_pool::SegregatedAllocatorOptions pmr_options(
-    std::vector<std::size_t> classes =
-        memory_pool::SizeClassSelector::default_size_classes()) {
+memory_pool::SegregatedAllocatorOptions
+pmr_options(std::vector<std::size_t> classes =
+                memory_pool::SizeClassSelector::default_size_classes()) {
     return memory_pool::SegregatedAllocatorOptions{
         .size_classes = std::move(classes),
         .initial_blocks_per_class = 2,
@@ -31,15 +31,14 @@ memory_pool::SegregatedAllocatorOptions pmr_options(
 }
 
 class TrackingMemoryResource final : public std::pmr::memory_resource {
-public:
+  public:
     std::size_t allocation_calls{};
     std::size_t successful_allocations{};
     std::size_t deallocation_calls{};
     bool fail_next_allocation{false};
 
-private:
-    [[nodiscard]] void* do_allocate(std::size_t bytes,
-                                    std::size_t alignment) override {
+  private:
+    [[nodiscard]] void* do_allocate(std::size_t bytes, std::size_t alignment) override {
         ++allocation_calls;
         if (fail_next_allocation) {
             fail_next_allocation = false;
@@ -49,15 +48,14 @@ private:
         return std::pmr::new_delete_resource()->allocate(bytes, alignment);
     }
 
-    void do_deallocate(void* pointer,
-                       std::size_t bytes,
-                       std::size_t alignment) override {
+    void
+    do_deallocate(void* pointer, std::size_t bytes, std::size_t alignment) override {
         ++deallocation_calls;
         std::pmr::new_delete_resource()->deallocate(pointer, bytes, alignment);
     }
 
-    [[nodiscard]] bool do_is_equal(
-        const std::pmr::memory_resource& other) const noexcept override {
+    [[nodiscard]] bool
+    do_is_equal(const std::pmr::memory_resource& other) const noexcept override {
         return this == &other;
     }
 };
@@ -113,12 +111,14 @@ void pmr_container_behavior(TestContext& test) {
     const ContainerSnapshot custom_result = exercise_containers(&custom);
     const ContainerSnapshot standard_result = exercise_containers(&standard);
 
-    test.expect(custom_result == standard_result,
-                "custom and standard PMR pools should produce identical container results");
-    test.expect(custom.statistics().successful_allocations > 0 &&
-                    custom.statistics().successful_allocations ==
-                        custom.statistics().deallocations,
-                "vector, string, list, and unordered_map should return all allocations");
+    test.expect(
+        custom_result == standard_result,
+        "custom and standard PMR pools should produce identical container results");
+    test.expect(
+        custom.statistics().successful_allocations > 0 &&
+            custom.statistics().successful_allocations ==
+                custom.statistics().deallocations,
+        "vector, string, list, and unordered_map should return all allocations");
 }
 
 void equality_and_allocator_propagation(TestContext& test) {
@@ -159,10 +159,12 @@ void polymorphic_allocator_alignment(TestContext& test) {
 
     std::construct_at(values, OverAlignedValue{11});
     std::construct_at(values + 1, OverAlignedValue{22});
-    test.expect(reinterpret_cast<std::uintptr_t>(values) % alignof(OverAlignedValue) == 0,
+    test.expect(reinterpret_cast<std::uintptr_t>(values) % alignof(OverAlignedValue) ==
+                    0,
                 "polymorphic_allocator should preserve over-aligned element alignment");
-    test.expect(values[0].value == 11 && values[1].value == 22,
-                "polymorphic_allocator should support contiguous multi-element storage");
+    test.expect(
+        values[0].value == 11 && values[1].value == 22,
+        "polymorphic_allocator should support contiguous multi-element storage");
 
     std::destroy_at(values);
     std::destroy_at(values + 1);
@@ -172,8 +174,8 @@ void polymorphic_allocator_alignment(TestContext& test) {
 void upstream_fallback_and_cleanup(TestContext& test) {
     TrackingMemoryResource upstream;
     {
-        memory_pool::PoolMemoryResource resource(
-            pmr_options({8, 16, 32, 64}), &upstream);
+        memory_pool::PoolMemoryResource resource(pmr_options({8, 16, 32, 64}),
+                                                 &upstream);
         test.expect(resource.upstream_resource() == &upstream,
                     "the configured upstream resource should be observable");
 
@@ -194,8 +196,7 @@ void upstream_fallback_and_cleanup(TestContext& test) {
 
 void upstream_failure_and_deallocation_validation(TestContext& test) {
     TrackingMemoryResource upstream;
-    memory_pool::PoolMemoryResource resource(
-        pmr_options({8, 16, 32, 64}), &upstream);
+    memory_pool::PoolMemoryResource resource(pmr_options({8, 16, 32, 64}), &upstream);
     upstream.fail_next_allocation = true;
 
     test.expect_throws<std::bad_alloc>(
@@ -211,9 +212,7 @@ void upstream_failure_and_deallocation_validation(TestContext& test) {
     resource.deallocate(fallback, 128, 64);
 
     test.expect_throws<std::invalid_argument>(
-        [] {
-            memory_pool::PoolMemoryResource invalid(pmr_options(), nullptr);
-        },
+        [] { memory_pool::PoolMemoryResource invalid(pmr_options(), nullptr); },
         "a null upstream resource should be rejected");
 }
 

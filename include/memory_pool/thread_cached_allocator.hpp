@@ -15,11 +15,10 @@ namespace memory_pool {
 /// A shared allocator with per-thread small-block caches. The allocator must
 /// outlive all calls, and its destructor must not race with worker threads.
 class ThreadCachedAllocator {
-public:
-    explicit ThreadCachedAllocator(
-        SegregatedAllocatorOptions allocator_options = {},
-        ThreadCacheOptions cache_options = {},
-        MemoryProviderPtr provider = {});
+  public:
+    explicit ThreadCachedAllocator(SegregatedAllocatorOptions allocator_options = {},
+                                   ThreadCacheOptions cache_options = {},
+                                   MemoryProviderPtr provider = {});
     ~ThreadCachedAllocator();
 
     ThreadCachedAllocator(const ThreadCachedAllocator&) = delete;
@@ -27,26 +26,23 @@ public:
     ThreadCachedAllocator(ThreadCachedAllocator&&) = delete;
     ThreadCachedAllocator& operator=(ThreadCachedAllocator&&) = delete;
 
-    [[nodiscard]] void* allocate(
-        std::size_t size,
-        std::size_t alignment = alignof(std::max_align_t));
+    [[nodiscard]] void* allocate(std::size_t size,
+                                 std::size_t alignment = alignof(std::max_align_t));
     void deallocate(void* pointer);
-    void deallocate(void* pointer,
-                    std::size_t size,
-                    std::size_t alignment);
+    void deallocate(void* pointer, std::size_t size, std::size_t alignment);
 
     /// Returns cached blocks owned by the calling thread to central storage.
     [[nodiscard]] std::size_t release_current_thread_cache();
 
     [[nodiscard]] bool owns(const void* pointer) const;
-    [[nodiscard]] std::optional<std::size_t> owning_size_class(
-        const void* pointer) const;
+    [[nodiscard]] std::optional<std::size_t>
+    owning_size_class(const void* pointer) const;
     /// Each field is atomic and race-free, but a snapshot taken during active
     /// allocation is not a single linearizable view across all counters.
     [[nodiscard]] ThreadCacheStatistics statistics() const noexcept;
     [[nodiscard]] SegregatedAllocatorStatistics central_statistics() const;
 
-private:
+  private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };

@@ -17,20 +17,18 @@ FixedSizeMemoryPool::FixedSizeMemoryPool(std::size_t block_size,
                                          std::size_t block_count,
                                          std::size_t alignment,
                                          PoolOptions options)
-    : options_(options),
-      fast_path_(options.diagnostics == DiagnosticMode::disabled &&
-                 !options.poison_memory && !options.guard_bytes &&
-                 !options.collect_statistics) {
+    : options_(options), fast_path_(options.diagnostics == DiagnosticMode::disabled &&
+                                    !options.poison_memory && !options.guard_bytes &&
+                                    !options.collect_statistics) {
     // One layout calculation keeps payload alignment, optional guards, and the
     // intrusive FreeNode storage consistent across every operation.
-    const detail::BlockLayout layout = detail::make_block_layout(
-        block_size,
-        block_count,
-        alignment,
-        options.guard_bytes,
-        sizeof(FreeNode),
-        alignof(FreeNode),
-        detail::guard_size);
+    const detail::BlockLayout layout = detail::make_block_layout(block_size,
+                                                                 block_count,
+                                                                 alignment,
+                                                                 options.guard_bytes,
+                                                                 sizeof(FreeNode),
+                                                                 alignof(FreeNode),
+                                                                 detail::guard_size);
 
     block_size_ = layout.block_size;
     block_count_ = layout.block_count;
@@ -92,8 +90,11 @@ void* FixedSizeMemoryPool::allocate() noexcept {
     }
 
     if (options_.poison_memory || options_.guard_bytes) {
-        detail::prepare_allocated_memory(
-            node, payload_offset_, block_size_, options_.poison_memory, options_.guard_bytes);
+        detail::prepare_allocated_memory(node,
+                                         payload_offset_,
+                                         block_size_,
+                                         options_.poison_memory,
+                                         options_.guard_bytes);
     }
     if (options_.collect_statistics) {
         detail::record_successful_allocation(statistics_);
@@ -117,12 +118,11 @@ void FixedSizeMemoryPool::deallocate(void* pointer) {
     }
 
     if (options_.poison_memory || options_.guard_bytes) {
-        detail::validate_and_prepare_freed_memory(
-            raw_block,
-            payload_offset_,
-            block_size_,
-            options_.poison_memory,
-            options_.guard_bytes);
+        detail::validate_and_prepare_freed_memory(raw_block,
+                                                  payload_offset_,
+                                                  block_size_,
+                                                  options_.poison_memory,
+                                                  options_.guard_bytes);
     }
     if (diagnostic_state_ != nullptr) {
         diagnostic_state_->mark_free(index);
@@ -146,8 +146,8 @@ bool FixedSizeMemoryPool::is_block_start(const void* pointer) const noexcept {
         return false;
     }
 
-    const auto offset = static_cast<std::size_t>(
-        static_cast<const std::byte*>(pointer) - storage_);
+    const auto offset =
+        static_cast<std::size_t>(static_cast<const std::byte*>(pointer) - storage_);
     return offset >= payload_offset_ &&
            (offset - payload_offset_) % block_stride_ == 0U &&
            (offset - payload_offset_) / block_stride_ < block_count_;
@@ -158,8 +158,8 @@ std::size_t FixedSizeMemoryPool::block_index(const void* pointer) const {
         throw InvalidPoolPointer("pointer is not the start of a block in this pool");
     }
 
-    const auto offset = static_cast<std::size_t>(
-        static_cast<const std::byte*>(pointer) - storage_);
+    const auto offset =
+        static_cast<std::size_t>(static_cast<const std::byte*>(pointer) - storage_);
     return (offset - payload_offset_) / block_stride_;
 }
 
@@ -194,8 +194,7 @@ void FixedSizeMemoryPool::validate_integrity() const {
 
 void FixedSizeMemoryPool::debug_dump(std::ostream& output) const {
     output << "FixedSizeMemoryPool{block_size=" << block_size_
-           << ", capacity=" << block_count_
-           << ", available=" << free_blocks_
+           << ", capacity=" << block_count_ << ", available=" << free_blocks_
            << ", diagnostics=" << (diagnostics_enabled() ? "enabled" : "disabled")
            << "}\n";
 
@@ -205,7 +204,8 @@ void FixedSizeMemoryPool::debug_dump(std::ostream& output) const {
     }
 
     for (std::size_t index = 0; index < block_count_; ++index) {
-        output << "block[" << index << "]=" << diagnostic_state_->state_name(index) << '\n';
+        output << "block[" << index << "]=" << diagnostic_state_->state_name(index)
+               << '\n';
     }
 
     output << "free_list=";
@@ -265,8 +265,7 @@ bool FixedSizeMemoryPool::is_raw_block_start(const void* pointer) const noexcept
 }
 
 std::size_t FixedSizeMemoryPool::raw_block_index(const void* pointer) const noexcept {
-    return static_cast<std::size_t>(
-               static_cast<const std::byte*>(pointer) - storage_) /
+    return static_cast<std::size_t>(static_cast<const std::byte*>(pointer) - storage_) /
            block_stride_;
 }
 

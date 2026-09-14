@@ -14,9 +14,8 @@ namespace {
 
 // Alignment, growth, reset retention, destruction order, and failure recovery.
 class TrackingProvider final : public memory_pool::IMemoryProvider {
-public:
-    [[nodiscard]] void* allocate(std::size_t bytes,
-                                 std::size_t alignment) override {
+  public:
+    [[nodiscard]] void* allocate(std::size_t bytes, std::size_t alignment) override {
         ++allocation_calls;
         if (fail_on_call != 0 && allocation_calls == fail_on_call) {
             throw std::bad_alloc{};
@@ -39,12 +38,12 @@ public:
     std::size_t fail_on_call{};
 };
 
-memory_pool::MonotonicArenaOptions arena_options(
-    std::size_t initial_size = 32,
-    memory_pool::ArenaGrowthPolicy growth =
-        memory_pool::ArenaGrowthPolicy::geometric(2, 128),
-    memory_pool::ArenaResetPolicy reset_policy =
-        memory_pool::ArenaResetPolicy::retain_all_chunks) {
+memory_pool::MonotonicArenaOptions
+arena_options(std::size_t initial_size = 32,
+              memory_pool::ArenaGrowthPolicy growth =
+                  memory_pool::ArenaGrowthPolicy::geometric(2, 128),
+              memory_pool::ArenaResetPolicy reset_policy =
+                  memory_pool::ArenaResetPolicy::retain_all_chunks) {
     return {
         .initial_chunk_size = initial_size,
         .initial_alignment = alignof(std::max_align_t),
@@ -55,32 +54,24 @@ memory_pool::MonotonicArenaOptions arena_options(
 
 void configuration_validation(TestContext& test) {
     test.expect_throws<std::invalid_argument>(
-        [] {
-            memory_pool::MonotonicArena arena({.initial_chunk_size = 0});
-        },
+        [] { memory_pool::MonotonicArena arena({.initial_chunk_size = 0}); },
         "an arena should reject a zero initial chunk size");
     test.expect_throws<std::invalid_argument>(
-        [] {
-            memory_pool::MonotonicArena arena({.initial_alignment = 0});
-        },
+        [] { memory_pool::MonotonicArena arena({.initial_alignment = 0}); },
         "an arena should reject zero initial alignment");
     test.expect_throws<std::invalid_argument>(
-        [] {
-            memory_pool::MonotonicArena arena({.initial_alignment = 3});
-        },
+        [] { memory_pool::MonotonicArena arena({.initial_alignment = 3}); },
         "an arena should reject non-power-of-two initial alignment");
     test.expect_throws<std::invalid_argument>(
         [] {
             memory_pool::MonotonicArena arena(
-                arena_options(32,
-                              memory_pool::ArenaGrowthPolicy::geometric(1, 128)));
+                arena_options(32, memory_pool::ArenaGrowthPolicy::geometric(1, 128)));
         },
         "geometric arena growth should reject a factor below two");
     test.expect_throws<std::invalid_argument>(
         [] {
             memory_pool::MonotonicArena arena(
-                arena_options(64,
-                              memory_pool::ArenaGrowthPolicy::geometric(2, 32)));
+                arena_options(64, memory_pool::ArenaGrowthPolicy::geometric(2, 32)));
         },
         "an arena growth cap should not be smaller than its initial chunk");
 }
@@ -98,10 +89,11 @@ void aligned_bump_allocation(TestContext& test) {
                     reinterpret_cast<std::uintptr_t>(over_aligned) % 256 == 0,
                 "arena allocations should preserve every requested alignment");
     test.expect(first != second && second != zero && arena.chunk_count() == 2,
-                "bump allocation should return unique live regions and grow for over-alignment");
+                "bump allocation should return unique live regions and grow for "
+                "over-alignment");
     int external = 0;
-    test.expect(arena.owns(first) && arena.owns(over_aligned) &&
-                    !arena.owns(nullptr) && !arena.owns(&external),
+    test.expect(arena.owns(first) && arena.owns(over_aligned) && !arena.owns(nullptr) &&
+                    !arena.owns(&external),
                 "arena ownership should cover every backing chunk");
     test.expect_throws<std::invalid_argument>(
         [&] { static_cast<void>(arena.allocate(8, 3)); },
@@ -123,17 +115,16 @@ void fixed_growth_and_oversized_chunks(TestContext& test) {
         arena_options(32, memory_pool::ArenaGrowthPolicy::fixed()));
     static_cast<void>(fixed_arena.allocate(32, 1));
     static_cast<void>(fixed_arena.allocate(1, 1));
-    test.expect(fixed_arena.chunk_count() == 2 &&
-                    fixed_arena.bytes_reserved() == 64,
+    test.expect(fixed_arena.chunk_count() == 2 && fixed_arena.bytes_reserved() == 64,
                 "fixed growth should add chunks with the initial capacity");
 
     memory_pool::MonotonicArena capped_arena(arena_options());
     static_cast<void>(capped_arena.allocate(32, 1));
     void* const oversized = capped_arena.allocate(200, 64);
-    test.expect(capped_arena.chunk_count() == 2 &&
-                    capped_arena.bytes_reserved() == 232 &&
-                    reinterpret_cast<std::uintptr_t>(oversized) % 64 == 0,
-                "a request above the growth cap should receive a dedicated fitting chunk");
+    test.expect(
+        capped_arena.chunk_count() == 2 && capped_arena.bytes_reserved() == 232 &&
+            reinterpret_cast<std::uintptr_t>(oversized) % 64 == 0,
+        "a request above the growth cap should receive a dedicated fitting chunk");
 }
 
 void geometric_growth_and_pointer_stability(TestContext& test) {
@@ -164,8 +155,7 @@ void retain_all_reuses_chunks(TestContext& test) {
     test.expect(arena.chunk_count() == 3 && arena.bytes_used() == 0 &&
                     arena.bytes_reserved() == reserved,
                 "retain-all reset should rewind without releasing chunks");
-    test.expect(arena.allocate(32, 1) == first &&
-                    arena.allocate(1, 1) == second &&
+    test.expect(arena.allocate(32, 1) == first && arena.allocate(1, 1) == second &&
                     arena.allocate(64, 1) == third,
                 "retain-all reset should reuse chunk addresses in the same order");
 
@@ -180,10 +170,9 @@ void retain_initial_releases_extra_chunks(TestContext& test) {
     auto provider = std::make_shared<TrackingProvider>();
     {
         memory_pool::MonotonicArena arena(
-            arena_options(
-                32,
-                memory_pool::ArenaGrowthPolicy::geometric(2, 128),
-                memory_pool::ArenaResetPolicy::retain_initial_chunk),
+            arena_options(32,
+                          memory_pool::ArenaGrowthPolicy::geometric(2, 128),
+                          memory_pool::ArenaResetPolicy::retain_initial_chunk),
             provider);
         static_cast<void>(arena.allocate(32, 1));
         static_cast<void>(arena.allocate(64, 1));
@@ -230,8 +219,9 @@ void destructor_policy(TestContext& test) {
         static_cast<void>(arena.create<TrackedObject>(4, destruction_log));
         static_cast<void>(arena.create<int>(42));
     }
-    test.expect(destruction_log == std::vector<int>({3, 2, 1, 4}),
-                "arena destruction should destroy objects created after the last reset");
+    test.expect(
+        destruction_log == std::vector<int>({3, 2, 1, 4}),
+        "arena destruction should destroy objects created after the last reset");
 }
 
 struct ThrowingObject {
@@ -252,10 +242,11 @@ void constructor_failure_rolls_back(TestContext& test) {
                     arena.statistics().construction_failures == 1,
                 "constructor failure should rewind the most recent bump allocation");
 
-    void* const reused = arena.allocate(
-        sizeof(ThrowingObject), alignof(ThrowingObject));
-    test.expect(reused == ThrowingObject::attempted_address,
-                "the allocation after constructor failure should reuse rolled-back storage");
+    void* const reused =
+        arena.allocate(sizeof(ThrowingObject), alignof(ThrowingObject));
+    test.expect(
+        reused == ThrowingObject::attempted_address,
+        "the allocation after constructor failure should reuse rolled-back storage");
 }
 
 struct NestedThrowingObject {
@@ -277,11 +268,13 @@ void constructor_failure_after_nested_allocation(TestContext& test) {
     test.expect(*existing == 123 && arena.owns(existing) &&
                     arena.bytes_used() > used_before &&
                     arena.statistics().construction_failures == 1,
-                "nested constructor failure should preserve earlier allocations and defer unrecoverable bump space to reset");
+                "nested constructor failure should preserve earlier allocations and "
+                "defer unrecoverable bump space to reset");
 
     arena.reset();
-    test.expect(arena.bytes_used() == 0,
-                "reset should recover storage retained after nested construction failure");
+    test.expect(
+        arena.bytes_used() == 0,
+        "reset should recover storage retained after nested construction failure");
 }
 
 struct alignas(256) OverAlignedObject {
@@ -292,9 +285,8 @@ struct alignas(256) OverAlignedObject {
 void over_aligned_typed_object(TestContext& test) {
     memory_pool::MonotonicArena arena(arena_options(64));
     OverAlignedObject* const object = arena.create<OverAlignedObject>(77);
-    test.expect(reinterpret_cast<std::uintptr_t>(object) %
-                        alignof(OverAlignedObject) ==
-                    0 &&
+    test.expect(reinterpret_cast<std::uintptr_t>(object) % alignof(OverAlignedObject) ==
+                        0 &&
                     object->value == 77,
                 "create<T> should support over-aligned arena-managed objects");
     arena.reset();

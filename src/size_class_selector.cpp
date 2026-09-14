@@ -36,9 +36,8 @@ std::vector<std::size_t> SizeClassSelector::default_size_classes() {
     return {8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096};
 }
 
-std::optional<std::size_t> SizeClassSelector::select(
-    std::size_t size,
-    std::size_t alignment) const {
+std::optional<std::size_t> SizeClassSelector::select(std::size_t size,
+                                                     std::size_t alignment) const {
     if (!is_power_of_two(alignment)) {
         throw std::invalid_argument("alignment must be a non-zero power of two");
     }
@@ -48,8 +47,8 @@ std::optional<std::size_t> SizeClassSelector::select(
     // alignment is also aligned strongly enough for the allocation.
     // Example: size=24, alignment=16 selects the 32-byte class.
     const std::size_t required_class = std::max(normalized_size, alignment);
-    const auto selected = std::lower_bound(
-        size_classes_.begin(), size_classes_.end(), required_class);
+    const auto selected =
+        std::lower_bound(size_classes_.begin(), size_classes_.end(), required_class);
     if (selected == size_classes_.end()) {
         return std::nullopt;
     }

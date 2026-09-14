@@ -20,7 +20,7 @@
 namespace memory_pool::detail {
 
 class ThreadCacheState {
-public:
+  public:
     // A separate vector per size class belongs exclusively to one thread.
     using CacheBins = std::vector<std::vector<void*>>;
 
@@ -31,25 +31,23 @@ public:
     [[nodiscard]] std::uint64_t id() const noexcept;
     [[nodiscard]] std::size_t class_count() const noexcept;
     [[nodiscard]] std::size_t cache_capacity() const noexcept;
-    [[nodiscard]] void* allocate(CacheBins& bins,
-                                 std::size_t size,
-                                 std::size_t alignment);
+    [[nodiscard]] void*
+    allocate(CacheBins& bins, std::size_t size, std::size_t alignment);
     void deallocate(CacheBins& bins,
                     void* pointer,
                     const std::size_t* size,
                     const std::size_t* alignment);
     [[nodiscard]] std::size_t flush_bins(CacheBins& bins);
     [[nodiscard]] bool owns(const void* pointer) const;
-    [[nodiscard]] std::optional<std::size_t> owning_size_class(
-        const void* pointer) const;
+    [[nodiscard]] std::optional<std::size_t>
+    owning_size_class(const void* pointer) const;
     [[nodiscard]] ThreadCacheStatistics snapshot() const noexcept;
     [[nodiscard]] SegregatedAllocatorStatistics central_snapshot() const;
 
-private:
+  private:
     static constexpr std::size_t shard_count = 64;
     // No valid size-class index can equal this sentinel.
-    static constexpr std::size_t fallback_class =
-        static_cast<std::size_t>(-1);
+    static constexpr std::size_t fallback_class = static_cast<std::size_t>(-1);
 
     struct AllocationRecord {
         // Records remain present while a pooled block is cached; `active`
@@ -84,14 +82,10 @@ private:
     };
 
     [[nodiscard]] RecordShard& shard_for(const void* pointer) noexcept;
-    [[nodiscard]] const RecordShard& shard_for(
-        const void* pointer) const noexcept;
-    [[nodiscard]] void* central_allocate(std::size_t size,
-                                         std::size_t alignment);
+    [[nodiscard]] const RecordShard& shard_for(const void* pointer) const noexcept;
+    [[nodiscard]] void* central_allocate(std::size_t size, std::size_t alignment);
     void central_deallocate(void* pointer);
-    void central_deallocate(void* pointer,
-                            std::size_t size,
-                            std::size_t alignment);
+    void central_deallocate(void* pointer, std::size_t size, std::size_t alignment);
     void record_allocation(void* pointer, AllocationRecord record);
     void validate_sized_deallocation(const AllocationRecord& record,
                                      std::size_t size,

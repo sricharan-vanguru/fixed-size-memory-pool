@@ -22,9 +22,8 @@ struct GrowthPolicy {
         return GrowthPolicy{};
     }
 
-    [[nodiscard]] static constexpr GrowthPolicy geometric(
-        std::size_t growth_factor = 2,
-        std::size_t maximum_blocks = 0) noexcept {
+    [[nodiscard]] static constexpr GrowthPolicy
+    geometric(std::size_t growth_factor = 2, std::size_t maximum_blocks = 0) noexcept {
         return GrowthPolicy{
             .mode = GrowthMode::geometric,
             .factor = growth_factor,

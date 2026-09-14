@@ -1,5 +1,5 @@
-#include "memory_pool/pool_errors.hpp"
 #include "memory_pool/new_delete_memory_provider.hpp"
+#include "memory_pool/pool_errors.hpp"
 #include "memory_pool/segregated_allocator.hpp"
 #include "memory_pool/size_class_selector.hpp"
 #include "test_support.hpp"
@@ -19,9 +19,8 @@ namespace {
 
 // Size-class boundaries, fallback metadata, routing errors, and random traffic.
 class TrackingProvider final : public memory_pool::IMemoryProvider {
-public:
-    [[nodiscard]] void* allocate(std::size_t bytes,
-                                 std::size_t alignment) override {
+  public:
+    [[nodiscard]] void* allocate(std::size_t bytes, std::size_t alignment) override {
         ++allocation_calls;
         if (fail_on_call != 0 && allocation_calls == fail_on_call) {
             throw std::bad_alloc{};
@@ -44,9 +43,9 @@ public:
     std::size_t fail_on_call{};
 };
 
-memory_pool::SegregatedAllocatorOptions allocator_options(
-    std::vector<std::size_t> classes =
-        memory_pool::SizeClassSelector::default_size_classes()) {
+memory_pool::SegregatedAllocatorOptions
+allocator_options(std::vector<std::size_t> classes =
+                      memory_pool::SizeClassSelector::default_size_classes()) {
     return memory_pool::SegregatedAllocatorOptions{
         .size_classes = std::move(classes),
         .initial_blocks_per_class = 2,
@@ -59,8 +58,7 @@ void default_size_class_boundaries(TestContext& test) {
     memory_pool::SizeClassSelector selector;
     const auto classes = selector.size_classes();
 
-    test.expect(classes.front() == 8 && classes.back() == 4096 &&
-                    classes.size() == 10,
+    test.expect(classes.front() == 8 && classes.back() == 4096 && classes.size() == 10,
                 "default size classes should span 8 through 4096 bytes");
 
     std::size_t previous = 0;
@@ -92,9 +90,7 @@ void size_class_validation(TestContext& test) {
         [] { memory_pool::SizeClassSelector selector({8, 24, 32}); },
         "non-power-of-two size classes should be rejected");
     test.expect_throws<std::invalid_argument>(
-        [] {
-            memory_pool::SizeClassSelector selector({sizeof(void*) / 2});
-        },
+        [] { memory_pool::SizeClassSelector selector({sizeof(void*) / 2}); },
         "classes smaller than a free-list pointer should be rejected");
 
     memory_pool::SizeClassSelector selector;
@@ -201,19 +197,16 @@ void sized_deallocation_mismatch_detection(TestContext& test) {
 }
 
 void internal_fragmentation_statistics(TestContext& test) {
-    memory_pool::SegregatedAllocator allocator(
-        allocator_options({8, 16, 32}));
+    memory_pool::SegregatedAllocator allocator(allocator_options({8, 16, 32}));
     void* first = allocator.allocate(9, 1);
     void* second = allocator.allocate(15, 1);
 
     const auto& statistics = allocator.statistics().size_classes[1];
-    test.expect(statistics.class_size == 16 &&
-                    statistics.requested_bytes == 24 &&
+    test.expect(statistics.class_size == 16 && statistics.requested_bytes == 24 &&
                     statistics.served_bytes == 32 &&
                     statistics.internal_fragmentation_bytes == 8,
                 "statistics should accumulate internal fragmentation per class");
-    test.expect(statistics.currently_allocated == 2 &&
-                    statistics.peak_allocated == 2,
+    test.expect(statistics.currently_allocated == 2 && statistics.peak_allocated == 2,
                 "class statistics should track current and peak use");
 
     allocator.deallocate(first);
@@ -239,8 +232,8 @@ void zero_size_and_invalid_alignment(TestContext& test) {
 void fallback_failure_and_destruction(TestContext& test) {
     auto failure_provider = std::make_shared<TrackingProvider>();
     {
-        memory_pool::SegregatedAllocator allocator(
-            allocator_options({8}), failure_provider);
+        memory_pool::SegregatedAllocator allocator(allocator_options({8}),
+                                                   failure_provider);
         failure_provider->fail_on_call = 2;
         test.expect_throws<std::bad_alloc>(
             [&] { static_cast<void>(allocator.allocate(9, 1)); },
@@ -255,8 +248,8 @@ void fallback_failure_and_destruction(TestContext& test) {
 
     auto cleanup_provider = std::make_shared<TrackingProvider>();
     {
-        memory_pool::SegregatedAllocator allocator(
-            allocator_options({8}), cleanup_provider);
+        memory_pool::SegregatedAllocator allocator(allocator_options({8}),
+                                                   cleanup_provider);
         static_cast<void>(allocator.allocate(9, 1));
     }
     test.expect(cleanup_provider->successful_allocations ==
@@ -283,12 +276,11 @@ void randomized_mixed_allocations(TestContext& test) {
     std::unordered_set<void*> unique_pointers;
 
     for (std::size_t operation = 0; operation < 5000; ++operation) {
-        const bool should_allocate = live.empty() ||
-                                     (live.size() < 128 && generator() % 2 == 0);
+        const bool should_allocate =
+            live.empty() || (live.size() < 128 && generator() % 2 == 0);
         if (should_allocate) {
             const std::size_t size = size_distribution(generator);
-            const std::size_t alignment =
-                alignments[alignment_distribution(generator)];
+            const std::size_t alignment = alignments[alignment_distribution(generator)];
             void* pointer = allocator.allocate(size, alignment);
             test.expect(unique_pointers.insert(pointer).second,
                         "simultaneously live allocations should have unique addresses");
@@ -298,16 +290,14 @@ void randomized_mixed_allocations(TestContext& test) {
 
         const std::size_t index = generator() % live.size();
         const Allocation allocation = live[index];
-        allocator.deallocate(
-            allocation.pointer, allocation.size, allocation.alignment);
+        allocator.deallocate(allocation.pointer, allocation.size, allocation.alignment);
         unique_pointers.erase(allocation.pointer);
         live[index] = live.back();
         live.pop_back();
     }
 
     for (const Allocation& allocation : live) {
-        allocator.deallocate(
-            allocation.pointer, allocation.size, allocation.alignment);
+        allocator.deallocate(allocation.pointer, allocation.size, allocation.alignment);
     }
     test.expect(allocator.statistics().successful_allocations ==
                     allocator.statistics().deallocations,

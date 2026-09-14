@@ -21,13 +21,13 @@ class DiagnosticState;
 /// Fixed-capacity allocator for equally sized, equally aligned blocks.
 /// The class is not thread-safe. Copying and moving are intentionally disabled.
 class FixedSizeMemoryPool {
-private:
+  private:
     // A free block stores its next link inside its own unused storage.
     struct FreeNode {
         FreeNode* next;
     };
 
-public:
+  public:
     FixedSizeMemoryPool(std::size_t block_size,
                         std::size_t block_count,
                         std::size_t alignment = alignof(std::max_align_t),
@@ -46,8 +46,7 @@ public:
     /// by this pool and must not have already been deallocated.
     void deallocate(void* pointer);
 
-    template <typename T, typename... Args>
-    [[nodiscard]] T* create(Args&&... args) {
+    template <typename T, typename... Args> [[nodiscard]] T* create(Args&&... args) {
         static_assert(!std::is_array_v<T>, "array types are not supported");
         if (sizeof(T) > block_size_) {
             throw std::invalid_argument("object is larger than a pool block");
@@ -62,7 +61,8 @@ public:
         }
 
         try {
-            return std::construct_at(static_cast<T*>(memory), std::forward<Args>(args)...);
+            return std::construct_at(static_cast<T*>(memory),
+                                     std::forward<Args>(args)...);
         } catch (...) {
             // Construction never completed, so only the raw block is returned.
             deallocate(memory);
@@ -70,8 +70,7 @@ public:
         }
     }
 
-    template <typename T>
-    void destroy(T* object) {
+    template <typename T> void destroy(T* object) {
         if (object == nullptr) {
             return;
         }
@@ -95,11 +94,15 @@ public:
     [[nodiscard]] std::size_t block_size() const noexcept { return block_size_; }
     [[nodiscard]] std::size_t capacity() const noexcept { return block_count_; }
     [[nodiscard]] std::size_t available() const noexcept { return free_blocks_; }
-    [[nodiscard]] std::size_t in_use() const noexcept { return block_count_ - free_blocks_; }
+    [[nodiscard]] std::size_t in_use() const noexcept {
+        return block_count_ - free_blocks_;
+    }
     [[nodiscard]] bool diagnostics_enabled() const noexcept;
-    [[nodiscard]] const PoolStatistics& statistics() const noexcept { return statistics_; }
+    [[nodiscard]] const PoolStatistics& statistics() const noexcept {
+        return statistics_;
+    }
 
-private:
+  private:
     // Raw blocks may include guard bytes before the user-visible payload.
     void initialize_free_list() noexcept;
     void validate_allocated_pointer(const void* pointer) const;

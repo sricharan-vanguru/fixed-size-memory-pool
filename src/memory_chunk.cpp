@@ -25,14 +25,14 @@ struct MemoryChunk::Impl {
             throw std::invalid_argument("memory provider must not be null");
         }
 
-        const detail::BlockLayout layout = detail::make_block_layout(
-            requested_block_size,
-            requested_block_count,
-            requested_alignment,
-            false,
-            sizeof(FreeNode),
-            alignof(FreeNode),
-            0);
+        const detail::BlockLayout layout =
+            detail::make_block_layout(requested_block_size,
+                                      requested_block_count,
+                                      requested_alignment,
+                                      false,
+                                      sizeof(FreeNode),
+                                      alignof(FreeNode),
+                                      0);
         block_size = layout.block_size;
         block_count = layout.block_count;
         alignment = layout.alignment;
@@ -46,9 +46,7 @@ struct MemoryChunk::Impl {
         initialize_free_list();
     }
 
-    ~Impl() {
-        provider->deallocate(storage, storage_size, alignment);
-    }
+    ~Impl() { provider->deallocate(storage, storage_size, alignment); }
 
     void initialize_free_list() noexcept {
         free_head = nullptr;
@@ -60,8 +58,8 @@ struct MemoryChunk::Impl {
     }
 
     [[nodiscard]] std::size_t block_index(const void* pointer) const noexcept {
-        return static_cast<std::size_t>(
-                   static_cast<const std::byte*>(pointer) - storage) /
+        return static_cast<std::size_t>(static_cast<const std::byte*>(pointer) -
+                                        storage) /
                block_stride;
     }
 

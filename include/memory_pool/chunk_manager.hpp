@@ -12,9 +12,8 @@ namespace memory_pool {
 
 /// Owns stable chunks and performs growth and empty-chunk reclamation.
 class ChunkManager {
-public:
-    explicit ChunkManager(ChunkManagerOptions options,
-                          MemoryProviderPtr provider = {});
+  public:
+    explicit ChunkManager(ChunkManagerOptions options, MemoryProviderPtr provider = {});
     ~ChunkManager();
 
     ChunkManager(const ChunkManager&) = delete;
@@ -41,10 +40,10 @@ public:
     [[nodiscard]] std::size_t next_growth_block_count() const noexcept;
     [[nodiscard]] IMemoryProvider& memory_provider() noexcept;
 
-private:
+  private:
     void reclaim_if_allowed(MemoryChunk* chunk) noexcept;
-    [[nodiscard]] std::size_t calculate_next_growth(
-        std::size_t current_blocks) const noexcept;
+    [[nodiscard]] std::size_t
+    calculate_next_growth(std::size_t current_blocks) const noexcept;
 
     ChunkManagerOptions options_;
     MemoryProviderPtr provider_;

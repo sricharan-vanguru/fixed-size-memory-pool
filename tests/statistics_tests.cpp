@@ -4,16 +4,19 @@ namespace statistics_tests {
 
 // Verify both cumulative counters and current/peak gauges around exhaustion.
 void run(TestContext& test) {
-    memory_pool::FixedSizeMemoryPool pool(24, 2, alignof(std::max_align_t),
-                                          diagnostic_options(true));
+    memory_pool::FixedSizeMemoryPool pool(
+        24, 2, alignof(std::max_align_t), diagnostic_options(true));
     void* first = pool.allocate();
     void* second = pool.allocate();
-    test.expect(pool.allocate() == nullptr, "a third allocation should exhaust the pool");
+    test.expect(pool.allocate() == nullptr,
+                "a third allocation should exhaust the pool");
     pool.deallocate(first);
 
     const auto& stats = pool.statistics();
-    test.expect(stats.allocation_requests == 3, "allocation attempts should be counted");
-    test.expect(stats.successful_allocations == 2, "successful allocations should be counted");
+    test.expect(stats.allocation_requests == 3,
+                "allocation attempts should be counted");
+    test.expect(stats.successful_allocations == 2,
+                "successful allocations should be counted");
     test.expect(stats.failed_allocations == 1, "failed allocations should be counted");
     test.expect(stats.deallocation_requests == 1, "deallocations should be counted");
     test.expect(stats.currently_allocated == 1, "live blocks should be reported");

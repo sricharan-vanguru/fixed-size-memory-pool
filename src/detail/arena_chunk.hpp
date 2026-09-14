@@ -16,10 +16,8 @@ struct ArenaAllocation {
 };
 
 class ArenaChunk {
-public:
-    ArenaChunk(std::size_t capacity,
-               std::size_t alignment,
-               MemoryProviderPtr provider);
+  public:
+    ArenaChunk(std::size_t capacity, std::size_t alignment, MemoryProviderPtr provider);
     ~ArenaChunk();
 
     ArenaChunk(const ArenaChunk&) = delete;
@@ -27,9 +25,8 @@ public:
     ArenaChunk(ArenaChunk&&) = delete;
     ArenaChunk& operator=(ArenaChunk&&) = delete;
 
-    [[nodiscard]] std::optional<ArenaAllocation> try_allocate(
-        std::size_t size,
-        std::size_t alignment) noexcept;
+    [[nodiscard]] std::optional<ArenaAllocation>
+    try_allocate(std::size_t size, std::size_t alignment) noexcept;
     /// Rewinds only to a previously returned offset; it does not run destructors.
     void rewind(std::size_t previous_offset) noexcept;
     void reset() noexcept;
@@ -39,7 +36,7 @@ public:
     [[nodiscard]] std::size_t used() const noexcept;
     [[nodiscard]] std::size_t alignment() const noexcept;
 
-private:
+  private:
     MemoryProviderPtr provider_;
     std::byte* storage_{};
     std::size_t capacity_{};

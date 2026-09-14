@@ -14,7 +14,7 @@ namespace memory_pool {
 /// Routes mixed-size requests to growing pools and uses the provider as a
 /// fallback for requests unsupported by the configured size classes.
 class SegregatedAllocator {
-public:
+  public:
     explicit SegregatedAllocator(SegregatedAllocatorOptions options = {},
                                  MemoryProviderPtr provider = {});
     ~SegregatedAllocator();
@@ -24,9 +24,8 @@ public:
     SegregatedAllocator(SegregatedAllocator&&) = delete;
     SegregatedAllocator& operator=(SegregatedAllocator&&) = delete;
 
-    [[nodiscard]] void* allocate(
-        std::size_t size,
-        std::size_t alignment = alignof(std::max_align_t));
+    [[nodiscard]] void* allocate(std::size_t size,
+                                 std::size_t alignment = alignof(std::max_align_t));
     void deallocate(void* pointer);
 
     /// Detects a different size-class route. Fallback allocations require an
@@ -34,12 +33,12 @@ public:
     void deallocate(void* pointer, std::size_t size, std::size_t alignment);
 
     [[nodiscard]] bool owns(const void* pointer) const noexcept;
-    [[nodiscard]] std::optional<std::size_t> owning_size_class(
-        const void* pointer) const noexcept;
+    [[nodiscard]] std::optional<std::size_t>
+    owning_size_class(const void* pointer) const noexcept;
     [[nodiscard]] const SizeClassSelector& selector() const noexcept;
     [[nodiscard]] const SegregatedAllocatorStatistics& statistics() const noexcept;
 
-private:
+  private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };

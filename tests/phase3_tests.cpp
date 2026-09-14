@@ -15,9 +15,8 @@ namespace {
 
 // Provider injection, stable chunks, growth, reclamation, and exhaustion modes.
 class FailureInjectionProvider final : public memory_pool::IMemoryProvider {
-public:
-    [[nodiscard]] void* allocate(std::size_t bytes,
-                                 std::size_t alignment) override {
+  public:
+    [[nodiscard]] void* allocate(std::size_t bytes, std::size_t alignment) override {
         ++allocation_calls;
         if (fail_on_call != 0 && allocation_calls == fail_on_call) {
             throw std::bad_alloc{};
@@ -38,10 +37,10 @@ public:
     std::size_t fail_on_call{};
 };
 
-memory_pool::ChunkManagerOptions options(
-    std::size_t blocks,
-    memory_pool::GrowthPolicy growth = memory_pool::GrowthPolicy::fixed(),
-    std::size_t spare_empty_chunks = 1) {
+memory_pool::ChunkManagerOptions
+options(std::size_t blocks,
+        memory_pool::GrowthPolicy growth = memory_pool::GrowthPolicy::fixed(),
+        std::size_t spare_empty_chunks = 1) {
     return memory_pool::ChunkManagerOptions{
         .block_size = 32,
         .initial_blocks = blocks,
@@ -88,8 +87,7 @@ void memory_chunk_behavior(TestContext& test) {
         "a chunk should reject an interior pointer");
     chunk.deallocate(first);
     test.expect_throws<memory_pool::DoubleFreeError>(
-        [&] { chunk.deallocate(first); },
-        "a chunk should detect a duplicate return");
+        [&] { chunk.deallocate(first); }, "a chunk should detect a duplicate return");
     chunk.deallocate(second);
     test.expect(chunk.empty(), "a chunk should become empty after all returns");
 }
@@ -119,8 +117,7 @@ void provider_stays_off_normal_path(TestContext& test) {
     manager.deallocate(pointer);
     pointer = manager.try_allocate();
 
-    test.expect(provider->allocation_calls == 1 &&
-                    provider->deallocation_calls == 0,
+    test.expect(provider->allocation_calls == 1 && provider->deallocation_calls == 0,
                 "normal block reuse should not call the memory provider");
     manager.deallocate(pointer);
 }
@@ -191,7 +188,7 @@ void acquisition_failure_has_strong_guarantee(TestContext& test) {
     provider->fail_on_call = 2;
 
     test.expect_throws<std::bad_alloc>([&] { static_cast<void>(manager.grow()); },
-                                      "provider failure should escape grow");
+                                       "provider failure should escape grow");
     test.expect(manager.chunk_count() == 1 && manager.capacity() == 2 &&
                     manager.find_chunk(existing) != nullptr && *existing == 77,
                 "failed growth should preserve existing chunks and allocations");

@@ -19,10 +19,12 @@ bool needs_extended_alignment(std::size_t alignment) noexcept {
 
 void* NewDeleteMemoryProvider::allocate(std::size_t bytes, std::size_t alignment) {
     if (bytes == 0) {
-        throw std::invalid_argument("provider allocation size must be greater than zero");
+        throw std::invalid_argument(
+            "provider allocation size must be greater than zero");
     }
     if (!is_power_of_two(alignment)) {
-        throw std::invalid_argument("provider alignment must be a non-zero power of two");
+        throw std::invalid_argument(
+            "provider alignment must be a non-zero power of two");
     }
     if (needs_extended_alignment(alignment)) {
         // Allocation and deallocation must select matching overload families.
