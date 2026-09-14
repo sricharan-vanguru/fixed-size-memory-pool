@@ -2,6 +2,7 @@
 
 namespace statistics_tests {
 
+// Verify both cumulative counters and current/peak gauges around exhaustion.
 void run(TestContext& test) {
     memory_pool::FixedSizeMemoryPool pool(24, 2, alignof(std::max_align_t),
                                           diagnostic_options(true));

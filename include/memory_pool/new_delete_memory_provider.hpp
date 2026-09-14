@@ -4,6 +4,8 @@
 
 namespace memory_pool {
 
+/// Portable provider backed by the matching ordinary or aligned global
+/// new/delete overloads.
 class NewDeleteMemoryProvider final : public IMemoryProvider {
 public:
     [[nodiscard]] void* allocate(std::size_t bytes,

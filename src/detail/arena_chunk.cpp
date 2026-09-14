@@ -33,6 +33,8 @@ std::optional<ArenaAllocation> ArenaChunk::try_allocate(
 
     void* candidate = storage_ + offset_;
     std::size_t space = capacity_ - offset_;
+    // std::align advances candidate past any required padding and reduces
+    // space. Example: offset 3 with alignment 8 starts the object at offset 8.
     void* const aligned = std::align(alignment, size, candidate, space);
     if (aligned == nullptr) {
         return std::nullopt;
@@ -40,6 +42,8 @@ std::optional<ArenaAllocation> ArenaChunk::try_allocate(
 
     const std::size_t previous_offset = offset_;
     const auto aligned_address = static_cast<std::byte*>(aligned);
+    // Padding is consumed together with the payload; monotonic allocations do
+    // not create holes that can be individually reused.
     offset_ = static_cast<std::size_t>(aligned_address - storage_) + size;
     return ArenaAllocation{
         .pointer = aligned,

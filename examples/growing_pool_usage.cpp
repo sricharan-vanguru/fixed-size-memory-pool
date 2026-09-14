@@ -14,6 +14,7 @@ int main() {
     });
 
     std::vector<void*> allocations;
+    // Five live blocks exceed capacities 2 then 4, demonstrating growth.
     for (int index = 0; index < 5; ++index) {
         allocations.push_back(pool.allocate());
     }
@@ -21,6 +22,7 @@ int main() {
     std::cout << "chunks after growth=" << pool.chunk_count() << '\n';
     std::cout << "capacity after growth=" << pool.capacity() << '\n';
 
+    // Completely empty excess chunks are released, while one spare remains.
     for (void* pointer : allocations) {
         pool.deallocate(pointer);
     }

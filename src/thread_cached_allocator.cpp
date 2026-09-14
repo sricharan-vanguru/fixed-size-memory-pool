@@ -11,18 +11,22 @@ namespace memory_pool {
 
 struct ThreadCachedAllocator::Impl {
     struct LocalCache {
+        // weak_ptr prevents thread-local data from extending allocator lifetime.
         std::weak_ptr<detail::ThreadCacheState> state;
         detail::ThreadCacheState::CacheBins bins;
     };
 
     struct ThreadRegistry {
         ~ThreadRegistry() {
+            // A worker returning from its thread automatically gives cached
+            // blocks back while the shared allocator state is still alive.
             for (auto& [id, cache] : caches) {
                 static_cast<void>(id);
                 if (const auto state = cache.state.lock()) {
                     try {
                         static_cast<void>(state->flush_bins(cache.bins));
                     } catch (...) {
+                        // Thread-local destruction cannot report exceptions.
                     }
                 }
             }
@@ -39,6 +43,7 @@ struct ThreadCachedAllocator::Impl {
             replacement.state = state;
             replacement.bins.resize(state->class_count());
             for (auto& bin : replacement.bins) {
+                // One extra slot permits push-then-flush at the high watermark.
                 bin.reserve(state->cache_capacity());
             }
 
@@ -75,9 +80,12 @@ struct ThreadCachedAllocator::Impl {
               std::move(provider))) {}
 
     ~Impl() {
+        // Release the cache belonging to the thread that destroys the wrapper.
+        // Other worker threads are required to have finished already.
         try {
             static_cast<void>(registry.release(state->id()));
         } catch (...) {
+            // Destructors remain non-throwing; explicit release reports errors.
         }
     }
 

@@ -19,6 +19,7 @@ double measure_shared_pairs(Allocator& allocator,
                             std::size_t thread_count,
                             std::size_t operations_per_thread,
                             std::atomic<std::uintptr_t>& checksum) {
+    // Start workers together so both allocators are measured under contention.
     std::barrier start_line(static_cast<std::ptrdiff_t>(thread_count));
     std::vector<std::thread> workers;
     workers.reserve(thread_count);
@@ -59,6 +60,8 @@ int main() {
         .initial_blocks_per_class = 64,
     };
     memory_pool::SynchronizedAllocator synchronized(allocator_options);
+    // Both candidates use identical central size-class configuration; only the
+    // per-thread caching layer differs.
     memory_pool::ThreadCachedAllocator cached(
         allocator_options,
         {.low_watermark = 8, .high_watermark = 64, .refill_batch = 32});

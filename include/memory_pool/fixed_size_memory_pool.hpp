@@ -64,6 +64,7 @@ public:
         try {
             return std::construct_at(static_cast<T*>(memory), std::forward<Args>(args)...);
         } catch (...) {
+            // Construction never completed, so only the raw block is returned.
             deallocate(memory);
             throw;
         }
@@ -75,6 +76,8 @@ public:
             return;
         }
 
+        // Validate before invoking user code: an invalid pointer must never be
+        // passed to an arbitrary destructor.
         validate_allocated_pointer(object);
         std::destroy_at(object);
         deallocate(object);
@@ -97,6 +100,7 @@ public:
     [[nodiscard]] const PoolStatistics& statistics() const noexcept { return statistics_; }
 
 private:
+    // Raw blocks may include guard bytes before the user-visible payload.
     void initialize_free_list() noexcept;
     void validate_allocated_pointer(const void* pointer) const;
 

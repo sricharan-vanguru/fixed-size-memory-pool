@@ -38,6 +38,8 @@ struct MemoryChunk::Impl {
         alignment = layout.alignment;
         block_stride = layout.block_stride;
         storage_size = layout.storage_size;
+        // Unlike the minimal fixed pool, chunks always track state because a
+        // manager may need deterministic ownership and reclamation decisions.
         states.assign(block_count, 0U);
 
         storage = static_cast<std::byte*>(provider->allocate(storage_size, alignment));
@@ -91,6 +93,7 @@ void* MemoryChunk::allocate() noexcept {
     Impl::FreeNode* const node = impl_->free_head;
     impl_->free_head = node->next;
     --impl_->free_blocks;
+    // The list and state byte are updated together: 0 means free, 1 means live.
     impl_->states[impl_->block_index(node)] = 1U;
     return node;
 }

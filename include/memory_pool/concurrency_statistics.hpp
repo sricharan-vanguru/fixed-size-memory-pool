@@ -4,6 +4,8 @@
 
 namespace memory_pool {
 
+/// Cumulative thread-cache activity plus current and peak gauge values.
+/// Snapshots are race-free but are not one atomic view of every field.
 struct ThreadCacheStatistics {
     std::size_t allocation_requests{};
     std::size_t deallocation_requests{};

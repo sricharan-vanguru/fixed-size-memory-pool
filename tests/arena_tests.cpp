@@ -12,6 +12,7 @@
 namespace arena_tests {
 namespace {
 
+// Alignment, growth, reset retention, destruction order, and failure recovery.
 class TrackingProvider final : public memory_pool::IMemoryProvider {
 public:
     [[nodiscard]] void* allocate(std::size_t bytes,

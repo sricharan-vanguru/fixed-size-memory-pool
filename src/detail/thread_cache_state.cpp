@@ -16,6 +16,8 @@ std::atomic<std::uint64_t> next_allocator_id{1};
 std::atomic<std::uint64_t> next_thread_id{1};
 
 std::uint64_t current_thread_id() noexcept {
+    // A small stable integer is cheaper to store than std::thread::id and is
+    // sufficient for comparing allocation and deallocation threads.
     thread_local const std::uint64_t id =
         next_thread_id.fetch_add(1, std::memory_order_relaxed);
     return id;
@@ -43,6 +45,7 @@ ThreadCacheOptions validate_cache_options(ThreadCacheOptions options) {
 
 void update_peak(std::atomic<std::size_t>& peak,
                  std::size_t candidate) noexcept {
+    // Relaxed ordering is enough: counters provide telemetry, not synchronization.
     std::size_t observed = peak.load(std::memory_order_relaxed);
     while (observed < candidate &&
            !peak.compare_exchange_weak(observed,
@@ -80,6 +83,7 @@ std::size_t ThreadCacheState::cache_capacity() const noexcept {
 ThreadCacheState::RecordShard& ThreadCacheState::shard_for(
     const void* pointer) noexcept {
     const auto address = reinterpret_cast<std::uintptr_t>(pointer);
+    // Ignore the low alignment bits, which are commonly identical for blocks.
     return shards_[(address >> 4U) % shard_count];
 }
 
@@ -132,6 +136,8 @@ void* ThreadCacheState::allocate(CacheBins& bins,
     const std::uint64_t thread_id = current_thread_id();
 
     if (!selected.has_value()) {
+        // Fallback allocations cannot enter a size-class cache because their
+        // exact size and alignment must be preserved for deallocation.
         void* const pointer = central_allocate(request_size, alignment);
         try {
             record_allocation(pointer,
@@ -150,6 +156,7 @@ void* ThreadCacheState::allocate(CacheBins& bins,
 
     std::vector<void*>& bin = bins[*selected];
     if (!bin.empty()) {
+        // LIFO reuse tends to return a recently touched cache line.
         void* const pointer = bin.back();
         bin.pop_back();
         RecordShard& shard = shard_for(pointer);
@@ -168,6 +175,8 @@ void* ThreadCacheState::allocate(CacheBins& bins,
         return pointer;
     }
 
+    // The first central block satisfies this request; remaining blocks become
+    // inactive cache entries for later allocations on the same thread.
     statistics_.batch_refills.fetch_add(1, std::memory_order_relaxed);
     void* result = nullptr;
     for (std::size_t index = 0; index < cache_options_.refill_batch; ++index) {
@@ -187,6 +196,7 @@ void* ThreadCacheState::allocate(CacheBins& bins,
             if (index == 0) {
                 throw;
             }
+            // A partial refill is useful and remains internally consistent.
             break;
         }
 
@@ -249,6 +259,8 @@ void ThreadCacheState::deallocate(CacheBins& bins,
     const bool remote = record->second.owner_thread != thread_id;
     const bool fallback = record->second.class_index == fallback_class;
     if (remote || fallback) {
+        // Never place a block into a different thread's bins. Remote frees and
+        // fallback blocks go directly to synchronized central storage.
         if (size != nullptr && alignment != nullptr) {
             central_deallocate(pointer, *size, *alignment);
         } else {
@@ -264,6 +276,8 @@ void ThreadCacheState::deallocate(CacheBins& bins,
     }
 
     const std::size_t class_index = record->second.class_index;
+    // Mark inactive while holding the shard lock before publishing the pointer
+    // into this thread's private bin; this makes double-free detection precise.
     record->second.active = false;
     statistics_.local_deallocations.fetch_add(1, std::memory_order_relaxed);
     statistics_.live_allocations.fetch_sub(1, std::memory_order_relaxed);
@@ -291,6 +305,8 @@ std::size_t ThreadCacheState::flush_bin(std::vector<void*>& bin,
         if (record == shard.records.end() || record->second.active) {
             throw std::logic_error("thread cache metadata is inconsistent");
         }
+        // Keep the record lock until central storage accepts the block, so no
+        // concurrent ownership query observes a half-completed transition.
         central_deallocate(pointer);
         shard.records.erase(record);
         bin.pop_back();

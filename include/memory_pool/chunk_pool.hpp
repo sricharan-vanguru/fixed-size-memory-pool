@@ -9,6 +9,8 @@
 
 namespace memory_pool {
 
+/// Combines stable chunk storage with one compile-time exhaustion strategy.
+/// For example, GrowingChunkPool grows whereas NullableChunkPool returns null.
 template <typename ExhaustionPolicy>
 class BasicChunkPool {
 public:
@@ -26,6 +28,7 @@ public:
     BasicChunkPool& operator=(BasicChunkPool&&) = delete;
 
     [[nodiscard]] void* allocate() {
+        // Provider work is avoided while an existing chunk still has a block.
         if (void* pointer = manager_.try_allocate(); pointer != nullptr) {
             return pointer;
         }
@@ -40,6 +43,7 @@ public:
             manager_.deallocate(pointer);
             return;
         }
+        // Heap-fallback allocations are owned by the policy, not by a chunk.
         if (!exhaustion_policy_.try_deallocate(pointer, manager_)) {
             throw InvalidPoolPointer("pointer is not owned by this chunk pool");
         }

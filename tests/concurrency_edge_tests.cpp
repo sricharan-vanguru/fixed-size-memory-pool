@@ -18,6 +18,7 @@
 namespace concurrency_edge_tests {
 namespace {
 
+// Adversarial races and boundary configurations supplement the normal suite.
 memory_pool::SegregatedAllocatorOptions single_class_options(
     std::size_t initial_blocks = 16) {
     return memory_pool::SegregatedAllocatorOptions{

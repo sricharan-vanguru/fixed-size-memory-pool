@@ -21,6 +21,7 @@ namespace memory_pool::detail {
 
 class ThreadCacheState {
 public:
+    // A separate vector per size class belongs exclusively to one thread.
     using CacheBins = std::vector<std::vector<void*>>;
 
     ThreadCacheState(SegregatedAllocatorOptions allocator_options,
@@ -46,10 +47,13 @@ public:
 
 private:
     static constexpr std::size_t shard_count = 64;
+    // No valid size-class index can equal this sentinel.
     static constexpr std::size_t fallback_class =
         static_cast<std::size_t>(-1);
 
     struct AllocationRecord {
+        // Records remain present while a pooled block is cached; `active`
+        // distinguishes a live allocation from a locally cached free block.
         std::size_t class_index{};
         std::size_t requested_size{};
         std::size_t alignment{};
@@ -58,6 +62,7 @@ private:
     };
 
     struct RecordShard {
+        // Pointer hashing spreads ownership lookups across independent locks.
         mutable std::mutex mutex;
         std::unordered_map<void*, AllocationRecord> records;
     };
@@ -98,6 +103,8 @@ private:
     std::uint64_t id_;
     ThreadCacheOptions cache_options_;
     SizeClassSelector selector_;
+    // SegregatedAllocator is intentionally unsynchronized, so every direct
+    // central operation is serialized by this one mutex.
     mutable std::mutex central_mutex_;
     SegregatedAllocator central_;
     std::array<RecordShard, shard_count> shards_;

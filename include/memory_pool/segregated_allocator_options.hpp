@@ -8,6 +8,8 @@
 
 namespace memory_pool {
 
+/// Configuration shared by all size-class pools. Requests unsupported by these
+/// classes use a direct provider allocation rather than failing.
 struct SegregatedAllocatorOptions {
     std::vector<std::size_t> size_classes{
         SizeClassSelector::default_size_classes()};

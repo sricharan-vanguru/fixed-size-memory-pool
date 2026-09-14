@@ -9,6 +9,7 @@
 namespace core_tests {
 namespace {
 
+// Core behavior: capacity, LIFO reuse, alignment, pointer checks, and lifetime.
 struct Tracked {
     static inline int alive = 0;
     int value;

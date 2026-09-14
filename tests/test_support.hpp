@@ -7,6 +7,8 @@
 
 class TestContext {
 public:
+    // Tests continue after a failed expectation so one run can report several
+    // independent problems without an external test framework dependency.
     void expect(bool condition, const char* message) {
         if (!condition) {
             std::cerr << "FAIL: " << message << '\n';

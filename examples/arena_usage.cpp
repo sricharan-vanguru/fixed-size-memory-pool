@@ -28,6 +28,8 @@ int main() {
     std::cout << "chunks before reset=" << compiler_pass_arena.chunk_count()
               << '\n';
 
+    // One reset destroys all three strings/nodes in reverse creation order and
+    // makes their storage reusable for the next compiler pass.
     compiler_pass_arena.reset();
     std::cout << "used bytes after reset=" << compiler_pass_arena.bytes_used()
               << '\n';

@@ -35,6 +35,8 @@ public:
     }
 
 private:
+    // PMR resources are conventionally non-owning dependencies. The public
+    // PoolMemoryResource documents that this pointer must outlive it.
     std::pmr::memory_resource* upstream_;
 };
 
@@ -79,6 +81,8 @@ void PoolMemoryResource::do_deallocate(void* pointer,
 
 bool PoolMemoryResource::do_is_equal(
     const std::pmr::memory_resource& other) const noexcept {
+    // Equal PMR resources may deallocate each other's memory. Separate pool
+    // instances cannot do that safely, even when configured identically.
     return this == &other;
 }
 

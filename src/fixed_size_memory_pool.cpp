@@ -21,6 +21,8 @@ FixedSizeMemoryPool::FixedSizeMemoryPool(std::size_t block_size,
       fast_path_(options.diagnostics == DiagnosticMode::disabled &&
                  !options.poison_memory && !options.guard_bytes &&
                  !options.collect_statistics) {
+    // One layout calculation keeps payload alignment, optional guards, and the
+    // intrusive FreeNode storage consistent across every operation.
     const detail::BlockLayout layout = detail::make_block_layout(
         block_size,
         block_count,
@@ -56,6 +58,8 @@ FixedSizeMemoryPool::~FixedSizeMemoryPool() {
 }
 
 void* FixedSizeMemoryPool::allocate() noexcept {
+    // The default path deliberately performs only a free-list pop and counter
+    // update. Optional diagnostics never add branches inside this path.
     if (fast_path_) {
         if (free_head_ == nullptr) {
             return nullptr;
@@ -80,6 +84,8 @@ void* FixedSizeMemoryPool::allocate() noexcept {
     free_head_ = node->next;
     --free_blocks_;
 
+    // A reachable node marked allocated means an internal invariant has been
+    // violated. allocate() is noexcept, so continuing would be unsafe.
     if (diagnostic_state_ != nullptr &&
         !diagnostic_state_->try_mark_allocated(raw_block_index(node))) {
         std::terminate();
@@ -104,6 +110,7 @@ void FixedSizeMemoryPool::deallocate(void* pointer) {
     std::byte* const raw_block = raw_block_from_payload(pointer);
 
     if (fast_path_) {
+        // Freed payload storage becomes the next intrusive list link.
         free_head_ = ::new (raw_block) FreeNode{free_head_};
         ++free_blocks_;
         return;
@@ -168,6 +175,8 @@ void FixedSizeMemoryPool::validate_integrity() const {
         throw std::logic_error("integrity validation requires diagnostic mode");
     }
 
+    // Compare two independent views of the pool: the linked free list and the
+    // diagnostic allocation-state table.
     std::vector<std::size_t> free_indices;
     free_indices.reserve(free_blocks_);
     for (const FreeNode* node = free_head_; node != nullptr; node = node->next) {
@@ -229,6 +238,8 @@ bool FixedSizeMemoryPool::diagnostics_enabled() const noexcept {
 
 void FixedSizeMemoryPool::initialize_free_list() noexcept {
     free_head_ = nullptr;
+    // Build backwards so the first allocation returns block zero. Returning a
+    // block later pushes it to the head, giving normal operation LIFO reuse.
     for (std::size_t index = block_count_; index > 0; --index) {
         void* const block = storage_ + ((index - 1U) * block_stride_);
         free_head_ = ::new (block) FreeNode{free_head_};

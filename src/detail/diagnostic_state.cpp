@@ -37,6 +37,8 @@ void DiagnosticState::validate_free_blocks(
         throw MemoryCorruptionError("free list length disagrees with available count");
     }
 
+    // `seen` detects both a cycle/duplicate and disagreement between the state
+    // table and free-list membership.
     std::vector<bool> seen(states_.size(), false);
     for (const std::size_t index : free_indices) {
         if (index >= states_.size()) {

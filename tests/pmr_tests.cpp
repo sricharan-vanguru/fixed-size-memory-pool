@@ -18,6 +18,7 @@
 namespace pmr_tests {
 namespace {
 
+// Standard containers, resource identity, upstream behavior, and lifetimes.
 memory_pool::SegregatedAllocatorOptions pmr_options(
     std::vector<std::size_t> classes =
         memory_pool::SizeClassSelector::default_size_classes()) {

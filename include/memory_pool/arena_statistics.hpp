@@ -4,6 +4,8 @@
 
 namespace memory_pool {
 
+/// Cumulative arena activity plus current and peak storage gauges. Used bytes
+/// include alignment padding; requested_bytes does not.
 struct ArenaStatistics {
     std::size_t allocation_requests{};
     std::size_t successful_allocations{};

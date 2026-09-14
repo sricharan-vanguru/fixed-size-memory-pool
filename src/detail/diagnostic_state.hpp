@@ -6,6 +6,8 @@
 
 namespace memory_pool::detail {
 
+/// Independent per-block truth used to validate the intrusive free list and to
+/// report double frees without changing the normal fast-path representation.
 class DiagnosticState {
 public:
     explicit DiagnosticState(std::size_t block_count);

@@ -41,6 +41,7 @@ public:
 
     template <typename... Args>
     [[nodiscard]] PoolPtr<T> make_unique(Args&&... args) & {
+        // The custom deleter remembers the originating pool; it does not own it.
         T* const object = create(std::forward<Args>(args)...);
         return PoolPtr<T>{object, PoolDeleter<T>{pool_}};
     }

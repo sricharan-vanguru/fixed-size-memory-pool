@@ -4,6 +4,8 @@
 
 namespace memory_pool {
 
+/// Optional cumulative counters for FixedSizeMemoryPool. Current and peak
+/// allocation counts are expressed in blocks; byte fields include padding.
 struct PoolStatistics {
     std::size_t allocation_requests{};
     std::size_t successful_allocations{};

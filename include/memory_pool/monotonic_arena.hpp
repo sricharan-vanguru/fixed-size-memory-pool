@@ -28,6 +28,8 @@ public:
         std::size_t size,
         std::size_t alignment = alignof(std::max_align_t));
 
+    /// Allocates and constructs one object. Non-trivial destructors run during
+    /// reset or arena destruction; individual destruction is not supported.
     template <typename T, typename... Args>
     [[nodiscard]] T* create(Args&&... args) & {
         static_assert(std::is_nothrow_destructible_v<T>,
@@ -39,6 +41,7 @@ public:
             object = std::construct_at(
                 static_cast<T*>(storage), std::forward<Args>(args)...);
             if constexpr (!std::is_trivially_destructible_v<T>) {
+                // Trivial types need no record, keeping create<int>() cheap.
                 register_destructor(
                     object,
                     [](void* pointer) noexcept {
@@ -48,6 +51,8 @@ public:
             note_object_construction();
             return object;
         } catch (...) {
+            // Registration itself may allocate metadata and throw after T was
+            // constructed, so destroy it before attempting cursor rollback.
             if (object != nullptr) {
                 std::destroy_at(object);
             }
@@ -62,6 +67,7 @@ public:
     /// Invalidates every arena pointer after running registered destructors.
     void reset() noexcept;
 
+    /// Reports backing-storage membership, not whether an object is still live.
     [[nodiscard]] bool owns(const void* pointer) const noexcept;
     [[nodiscard]] std::size_t chunk_count() const noexcept;
     [[nodiscard]] std::size_t bytes_used() const noexcept;

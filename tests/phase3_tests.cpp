@@ -13,6 +13,7 @@
 namespace phase3_tests {
 namespace {
 
+// Provider injection, stable chunks, growth, reclamation, and exhaustion modes.
 class FailureInjectionProvider final : public memory_pool::IMemoryProvider {
 public:
     [[nodiscard]] void* allocate(std::size_t bytes,

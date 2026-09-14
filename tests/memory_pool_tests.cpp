@@ -43,6 +43,7 @@ void run(TestContext& test);
 }
 
 int main() {
+    // Keep one executable while each feature area remains in its own module.
     TestContext test;
     core_tests::run(test);
     diagnostics_tests::run(test);

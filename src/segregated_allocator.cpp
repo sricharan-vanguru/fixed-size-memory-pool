@@ -38,6 +38,8 @@ struct SegregatedAllocator::Impl {
         pools.reserve(selector.class_count());
         statistics.size_classes.reserve(selector.class_count());
         for (const std::size_t class_size : selector.size_classes()) {
+            // Power-of-two class size is also a sufficient alignment for every
+            // request routed to that class.
             pools.push_back(std::make_unique<GrowingChunkPool>(
                 ChunkManagerOptions{
                     .block_size = class_size,
@@ -106,6 +108,8 @@ void* SegregatedAllocator::allocate(std::size_t size, std::size_t alignment) {
             return pointer;
         }
 
+        // Large or unsupported over-aligned requests bypass size classes. Exact
+        // metadata is required because the provider needs it during release.
         void* const pointer = impl_->provider->allocate(requested_size, alignment);
         try {
             const auto [allocation, inserted] = impl_->fallback_allocations.emplace(
@@ -120,6 +124,8 @@ void* SegregatedAllocator::allocate(std::size_t size, std::size_t alignment) {
                     "memory provider returned a duplicate live address");
             }
         } catch (...) {
+            // Strong exception safety: a failed metadata insertion must not
+            // orphan the provider allocation.
             impl_->provider->deallocate(pointer, requested_size, alignment);
             throw;
         }
@@ -143,6 +149,8 @@ void SegregatedAllocator::deallocate(void* pointer) {
         return;
     }
 
+    // Pooled blocks carry no per-allocation header, so unsized deallocation
+    // discovers the owner by examining stable chunk ranges.
     if (const auto owner = impl_->owning_class(pointer); owner.has_value()) {
         impl_->pools[*owner]->deallocate(pointer);
         SizeClassStatistics& class_statistics =
@@ -174,6 +182,8 @@ void SegregatedAllocator::deallocate(void* pointer,
     }
 
     if (const auto owner = impl_->owning_class(pointer); owner.has_value()) {
+        // Sizes inside one class are intentionally indistinguishable. This
+        // check catches a different routing class, not every byte mismatch.
         const auto supplied_class = impl_->selector.select(size, alignment);
         if (!supplied_class.has_value() || *supplied_class != *owner) {
             throw AllocationMismatchError(

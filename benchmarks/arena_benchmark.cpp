@@ -29,6 +29,8 @@ int main() {
     std::uintptr_t checksum = 0;
 
     memory_pool::MonotonicArena arena({
+        // One retained chunk fits a complete round, keeping provider growth out
+        // of the timed comparison.
         .initial_chunk_size = bytes_per_round,
         .growth = memory_pool::ArenaGrowthPolicy::fixed(),
         .reset_policy = memory_pool::ArenaResetPolicy::retain_all_chunks,
@@ -43,6 +45,8 @@ int main() {
         }
     });
 
+    // PMR receives the same amount of caller-owned storage and cannot fall
+    // through to an upstream resource, making both cases reuse fixed capacity.
     std::vector<std::byte> standard_storage(bytes_per_round);
     std::pmr::monotonic_buffer_resource standard(
         standard_storage.data(),

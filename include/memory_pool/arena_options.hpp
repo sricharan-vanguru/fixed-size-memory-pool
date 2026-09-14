@@ -5,10 +5,14 @@
 namespace memory_pool {
 
 enum class ArenaGrowthMode {
+    /// Add chunks with the initial capacity.
     fixed,
+    /// Multiply successive chunk capacities until the optional cap is reached.
     geometric,
 };
 
+/// A zero maximum means uncapped geometric growth. An allocation larger than
+/// the chosen growth size still receives a dedicated chunk large enough for it.
 struct ArenaGrowthPolicy {
     ArenaGrowthMode mode{ArenaGrowthMode::geometric};
     std::size_t factor{2};
@@ -30,7 +34,9 @@ struct ArenaGrowthPolicy {
 };
 
 enum class ArenaResetPolicy {
+    /// Rewind every chunk so repeated workloads reuse their peak capacity.
     retain_all_chunks,
+    /// Keep only the first chunk and return growth chunks to the provider.
     retain_initial_chunk,
 };
 

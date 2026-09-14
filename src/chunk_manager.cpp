@@ -35,6 +35,7 @@ ChunkManager::ChunkManager(ChunkManagerOptions options, MemoryProviderPtr provid
 ChunkManager::~ChunkManager() = default;
 
 void* ChunkManager::try_allocate() noexcept {
+    // Chunks own stable allocations, so scanning never relocates live blocks.
     for (const auto& chunk : chunks_) {
         if (chunk->available() != 0) {
             return chunk->allocate();
@@ -57,6 +58,8 @@ void ChunkManager::deallocate(void* pointer) {
 
 MemoryChunk& ChunkManager::grow() {
     const std::size_t new_chunk_blocks = next_growth_blocks_;
+    // Construct before modifying the vector. Provider or metadata failure then
+    // leaves the manager and all existing allocations unchanged.
     auto new_chunk = std::make_unique<MemoryChunk>(
         options_.block_size, new_chunk_blocks, options_.alignment, provider_);
     MemoryChunk& result = *new_chunk;
@@ -125,6 +128,8 @@ void ChunkManager::reclaim_if_allowed(MemoryChunk* chunk) noexcept {
         return;
     }
 
+    // Only the chunk that just became empty is considered. Erasing its owning
+    // unique_ptr releases the provider allocation without moving other chunks.
     const auto candidate = std::find_if(
         chunks_.begin(), chunks_.end(),
         [chunk](const auto& owned_chunk) { return owned_chunk.get() == chunk; });
@@ -145,6 +150,7 @@ std::size_t ChunkManager::calculate_next_growth(
     }
     if (current_blocks >
         std::numeric_limits<std::size_t>::max() / options_.growth.factor) {
+        // Saturation avoids wrapping to a small chunk count near size_t limits.
         return maximum != 0 ? maximum : std::numeric_limits<std::size_t>::max();
     }
 

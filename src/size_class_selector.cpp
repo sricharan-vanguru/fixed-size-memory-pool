@@ -44,6 +44,9 @@ std::optional<std::size_t> SizeClassSelector::select(
     }
 
     const std::size_t normalized_size = std::max<std::size_t>(size, 1);
+    // With power-of-two classes, a class at least as large as the requested
+    // alignment is also aligned strongly enough for the allocation.
+    // Example: size=24, alignment=16 selects the 32-byte class.
     const std::size_t required_class = std::max(normalized_size, alignment);
     const auto selected = std::lower_bound(
         size_classes_.begin(), size_classes_.end(), required_class);

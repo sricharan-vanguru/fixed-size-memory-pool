@@ -10,6 +10,8 @@ int main() {
     memory_pool::PoolMemoryResource resource;
 
     {
+        // Containers must be destroyed before the resource that owns their
+        // allocations; the nested scope makes that lifetime order explicit.
         std::pmr::vector<int> values(&resource);
         std::pmr::string message(&resource);
         std::pmr::unordered_map<int, std::pmr::string> labels(&resource);

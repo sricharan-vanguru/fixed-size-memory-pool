@@ -23,6 +23,8 @@ double measure_nanoseconds(std::size_t operations, Operation&& operation) {
 
 int main() {
     constexpr std::size_t iterations = 1'000'000;
+    // Capacity one intentionally measures immediate reuse of the same block,
+    // isolating allocator overhead from free-list traversal or cache misses.
     memory_pool::FixedSizeMemoryPool pool(
         sizeof(CacheLineObject), 1, alignof(CacheLineObject));
 
@@ -45,6 +47,8 @@ int main() {
     const double pool_time = measure_nanoseconds(iterations, [&] {
         for (std::size_t index = 0; index < iterations; ++index) {
             void* pointer = pool.allocate();
+            // Prevent the optimizer from proving that allocation has no
+            // observable use and removing the timed operation.
             asm volatile("" : : "g"(pointer) : "memory");
             checksum ^= reinterpret_cast<std::uintptr_t>(pointer);
             pool.deallocate(pointer);

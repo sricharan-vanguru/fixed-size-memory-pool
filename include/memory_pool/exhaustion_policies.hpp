@@ -8,6 +8,8 @@
 
 namespace memory_pool {
 
+/// Exhaustion policies share this small duck-typed interface so BasicChunkPool
+/// pays no virtual-dispatch cost when selecting behavior.
 class ReturnNullOnExhaustion {
 public:
     [[nodiscard]] void* on_exhaustion(ChunkManager&) const noexcept {
@@ -45,6 +47,8 @@ public:
         void* const pointer = manager.memory_provider().allocate(
             manager.block_size(), manager.alignment());
         try {
+            // Recording ownership can allocate and throw. Return the provider
+            // block first so that metadata failure cannot leak memory.
             fallback_allocations_.insert(pointer);
         } catch (...) {
             manager.memory_provider().deallocate(

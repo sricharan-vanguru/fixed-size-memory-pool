@@ -4,6 +4,8 @@
 
 namespace memory_pool::detail {
 
+/// Normalized dimensions shared by allocation, pointer validation, and guard
+/// handling. `block_stride` is the distance between two raw block starts.
 struct BlockLayout {
     std::size_t block_size{};
     std::size_t block_count{};

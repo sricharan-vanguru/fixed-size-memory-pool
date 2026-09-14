@@ -9,6 +9,7 @@ void record_allocation_request(PoolStatistics& statistics,
     ++statistics.allocation_requests;
     if (statistics.requested_bytes >
         std::numeric_limits<std::size_t>::max() - block_size) {
+        // Telemetry saturates rather than wrapping and reporting a small total.
         statistics.requested_bytes = std::numeric_limits<std::size_t>::max();
     } else {
         statistics.requested_bytes += block_size;

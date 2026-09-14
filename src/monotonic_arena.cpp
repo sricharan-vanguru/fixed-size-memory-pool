@@ -50,6 +50,7 @@ std::size_t normalized_size(std::size_t size) noexcept {
 
 struct MonotonicArena::Impl {
     struct DestructorRecord {
+        // Type erasure stores only what reset needs: address plus destructor.
         void* object;
         Destructor destructor;
     };
@@ -85,6 +86,7 @@ struct MonotonicArena::Impl {
         }
         if (current_size >
             std::numeric_limits<std::size_t>::max() / options.growth.factor) {
+            // Saturate instead of allowing multiplication to wrap around.
             return maximum != 0 ? maximum
                                 : std::numeric_limits<std::size_t>::max();
         }
@@ -137,6 +139,8 @@ struct MonotonicArena::Impl {
             const std::size_t request_size = normalized_size(size);
 
             for (std::size_t index = current_chunk; index < chunks.size(); ++index) {
+                // After reset, retained chunks are tried in their original
+                // order. During a lifetime we never move backwards.
                 auto& chunk = *chunks[index];
                 const auto allocation = chunk.try_allocate(request_size, alignment);
                 if (allocation.has_value()) {
@@ -146,6 +150,8 @@ struct MonotonicArena::Impl {
                 }
             }
 
+            // Oversized requests get a fitting chunk even when larger than the
+            // configured geometric-growth cap.
             const std::size_t capacity = std::max(next_chunk_size, request_size);
             const std::size_t chunk_alignment = std::max(
                 options.initial_alignment, alignment);
@@ -167,6 +173,9 @@ struct MonotonicArena::Impl {
 
     void rollback_last(void* pointer) noexcept {
         ++statistics.construction_failures;
+        // Rewinding is safe only if no nested arena allocation occurred after
+        // this storage was handed to the constructor. Otherwise reset recovers
+        // the consumed space later.
         if (last_allocation.pointer != pointer || last_allocation.chunk == nullptr) {
             return;
         }
@@ -176,6 +185,8 @@ struct MonotonicArena::Impl {
     }
 
     void destroy_registered_objects() noexcept {
+        // LIFO order mirrors automatic local variables: dependencies created
+        // first normally outlive objects created later.
         while (!destructors.empty()) {
             const DestructorRecord record = destructors.back();
             destructors.pop_back();
@@ -192,12 +203,16 @@ struct MonotonicArena::Impl {
         last_allocation = {};
 
         if (options.reset_policy == ArenaResetPolicy::retain_all_chunks) {
+            // Rewind without freeing: a repeated workload can reuse the exact
+            // same addresses and avoid future provider calls.
             for (const auto& chunk : chunks) {
                 chunk->reset();
             }
             return;
         }
 
+        // Memory-sensitive mode keeps a cheap initial allocation but releases
+        // capacity acquired for an earlier peak workload.
         chunks.front()->reset();
         if (chunks.size() > 1) {
             std::size_t released_bytes = 0;

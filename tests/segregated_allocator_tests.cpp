@@ -17,6 +17,7 @@
 namespace segregated_allocator_tests {
 namespace {
 
+// Size-class boundaries, fallback metadata, routing errors, and random traffic.
 class TrackingProvider final : public memory_pool::IMemoryProvider {
 public:
     [[nodiscard]] void* allocate(std::size_t bytes,

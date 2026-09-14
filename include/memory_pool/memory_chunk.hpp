@@ -7,7 +7,8 @@
 
 namespace memory_pool {
 
-/// One stable backing allocation divided into equal-size blocks.
+/// One stable backing allocation divided into equal-size blocks. Allocation
+/// state is always tracked so invalid and duplicate returns are deterministic.
 class MemoryChunk {
 public:
     MemoryChunk(std::size_t block_size,

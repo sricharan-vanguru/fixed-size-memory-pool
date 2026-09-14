@@ -52,6 +52,8 @@ BlockLayout make_block_layout(std::size_t requested_block_size,
     const std::size_t alignment = std::max(requested_alignment, free_node_alignment);
     const std::size_t block_size =
         round_up(std::max(requested_block_size, free_node_size), alignment);
+    // Guarded layout: [front guard/padding][payload][back guard/padding].
+    // The free-list node occupies the raw block start while the block is free.
     const std::size_t payload_offset =
         guard_bytes ? round_up(std::max(guard_size, free_node_size), alignment) : 0U;
 

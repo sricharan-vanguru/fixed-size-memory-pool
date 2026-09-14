@@ -5,10 +5,14 @@
 namespace memory_pool {
 
 enum class GrowthMode {
+    /// Every new chunk contains the same number of blocks as the first chunk.
     fixed,
+    /// Each new chunk multiplies the previous block count by `factor`.
     geometric,
 };
 
+/// Controls chunk sizes after the initial chunk becomes full. A maximum of
+/// zero means that geometric growth has no configured cap.
 struct GrowthPolicy {
     GrowthMode mode{GrowthMode::fixed};
     std::size_t factor{2};
@@ -35,6 +39,7 @@ struct ReclamationPolicy {
 };
 
 struct ChunkManagerOptions {
+    /// All chunks managed by one manager use this same block layout.
     std::size_t block_size{};
     std::size_t initial_blocks{};
     std::size_t alignment{alignof(std::max_align_t)};

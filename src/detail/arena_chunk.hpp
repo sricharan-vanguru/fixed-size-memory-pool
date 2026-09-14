@@ -9,6 +9,8 @@ namespace memory_pool::detail {
 
 struct ArenaAllocation {
     void* pointer{};
+    // These values allow create<T>() to undo its allocation if construction
+    // fails before a later arena allocation advances the same cursor.
     std::size_t previous_offset{};
     std::size_t consumed_bytes{};
 };
@@ -28,6 +30,7 @@ public:
     [[nodiscard]] std::optional<ArenaAllocation> try_allocate(
         std::size_t size,
         std::size_t alignment) noexcept;
+    /// Rewinds only to a previously returned offset; it does not run destructors.
     void rewind(std::size_t previous_offset) noexcept;
     void reset() noexcept;
 

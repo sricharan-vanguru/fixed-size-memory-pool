@@ -8,6 +8,7 @@
 namespace diagnostics_tests {
 namespace {
 
+// Opt-in safety behavior is tested independently from the default fast path.
 struct Tracked {
     static inline int alive = 0;
 

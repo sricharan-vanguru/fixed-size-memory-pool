@@ -64,6 +64,8 @@ public:
     [[nodiscard]] std::vector<std::size_t> size_classes() const {
         const std::lock_guard<Mutex> lock(mutex_);
         const auto& classes = allocator_.selector().size_classes();
+        // Return a copy because exposing the allocator's span after unlocking
+        // would make the synchronization boundary unclear.
         return {classes.begin(), classes.end()};
     }
 

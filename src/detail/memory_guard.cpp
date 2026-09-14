@@ -13,6 +13,7 @@ constexpr int allocated_pattern = 0xCD;
 constexpr int freed_pattern = 0xDD;
 
 void write_canaries(std::byte* payload, std::size_t block_size) noexcept {
+    // memcpy avoids dereferencing a possibly unaligned uint64_t guard address.
     std::memcpy(payload - guard_size, &front_canary, guard_size);
     std::memcpy(payload + block_size, &back_canary, guard_size);
 }
@@ -51,6 +52,8 @@ void validate_and_prepare_freed_memory(void* raw_block,
         throw MemoryCorruptionError("pool block guard bytes were modified");
     }
     if (poison_memory) {
+        // Distinct patterns make use-before-initialization and use-after-free
+        // easier to recognize in a debugger or memory dump.
         std::memset(payload, freed_pattern, block_size);
     }
 }

@@ -11,6 +11,7 @@
 namespace object_pool_tests {
 namespace {
 
+// Typed construction, RAII ownership, exception safety, and pool lifetimes.
 struct Tracked {
     static inline int alive = 0;
     int value;

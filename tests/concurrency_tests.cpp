@@ -19,6 +19,7 @@
 namespace concurrency_tests {
 namespace {
 
+// Shared correctness, cache batching, remote frees, and thread-exit cleanup.
 memory_pool::SegregatedAllocatorOptions concurrency_options(
     std::size_t initial_blocks = 16) {
     return memory_pool::SegregatedAllocatorOptions{

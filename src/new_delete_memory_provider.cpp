@@ -11,6 +11,7 @@ bool is_power_of_two(std::size_t value) noexcept {
 }
 
 bool needs_extended_alignment(std::size_t alignment) noexcept {
+    // Ordinary operator new already promises every alignment up to this value.
     return alignment > static_cast<std::size_t>(__STDCPP_DEFAULT_NEW_ALIGNMENT__);
 }
 
@@ -24,6 +25,7 @@ void* NewDeleteMemoryProvider::allocate(std::size_t bytes, std::size_t alignment
         throw std::invalid_argument("provider alignment must be a non-zero power of two");
     }
     if (needs_extended_alignment(alignment)) {
+        // Allocation and deallocation must select matching overload families.
         return ::operator new(bytes, std::align_val_t{alignment});
     }
     return ::operator new(bytes);

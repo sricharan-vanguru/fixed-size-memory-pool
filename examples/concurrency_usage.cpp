@@ -13,10 +13,13 @@ int main() {
     }
 
     std::thread consumer([&] {
+        // These blocks were allocated by the main thread, so returning them
+        // here exercises the safe cross-thread (remote-free) path.
         for (void* pointer : producer_allocations) {
             allocator.deallocate(pointer, 48, 16);
         }
 
+        // Same-thread reuse below can remain in this worker's local cache.
         for (std::size_t index = 0; index < 1'000; ++index) {
             void* const pointer = allocator.allocate(48, 16);
             allocator.deallocate(pointer, 48, 16);
