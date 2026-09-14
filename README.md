@@ -27,6 +27,9 @@ object lifetime, cache behavior, policies, and provider-based storage.
 - Per-thread size-class caches with configurable refill and flush watermarks
 - Safe cross-thread deallocation through synchronized central storage
 - Thread-safe cache, live-allocation, and remote-free statistics
+- Aligned monotonic allocation for request, frame, and compiler-pass lifetimes
+- Bulk arena reset with reusable or releasable growth chunks
+- Reverse-order destruction for non-trivial arena-created objects
 - Exception-safe object construction: a throwing constructor returns its block
   to the pool
 - Ownership and block-boundary validation on deallocation
@@ -361,6 +364,56 @@ synchronized baseline and 247.55 ns/pair for the thread-cached allocator. This
 demonstrates the intended batching effect for that run only; other machines and
 workloads will differ.
 
+### Lifetime-based monotonic arena
+
+`MonotonicArena` serves workloads whose allocations share one lifetime, such as
+an HTTP request, one compiler pass, or one rendered frame. Each allocation moves
+an aligned cursor forward. There is deliberately no individual `deallocate`;
+`reset()` invalidates every arena pointer together and makes the storage
+available for the next lifetime.
+
+```cpp
+memory_pool::MonotonicArena arena;
+
+SyntaxNode* left = arena.create<SyntaxNode>("4");
+SyntaxNode* right = arena.create<SyntaxNode>("5");
+SyntaxNode* root = arena.create<SyntaxNode>("+", left, right);
+
+// Use the complete tree, then finish this compiler pass.
+arena.reset();
+```
+
+`create<T>()` constructs an object in arena storage. Non-trivial objects are
+registered and destroyed in reverse construction order during `reset()` or
+arena destruction; arena-managed destructors must be `noexcept`. Raw
+`allocate()` only reserves bytes and never manages object destruction, so a
+caller using placement construction on raw storage remains responsible for
+ending that object's lifetime before reset.
+
+The default geometric policy grows chunks by a factor of two up to 1 MiB.
+Requests larger than that cap receive a fitting dedicated chunk. Fixed growth
+is also available. `retain_all_chunks` rewinds every acquired chunk at reset for
+stable repeated workloads, while `retain_initial_chunk` releases growth chunks
+to reduce retained memory. Existing addresses never move when the arena grows.
+
+Construction failure rewinds its storage when it is still the latest arena
+allocation. If a constructor recursively allocates from the same arena before
+throwing, that monotonic space remains reserved until reset, without corrupting
+earlier objects. Statistics expose cumulative requests, failures, padding,
+construction/destruction activity, resets, and current/peak storage.
+
+The arena is unsynchronized and should be confined to one thread or protected
+externally. `owns(pointer)` reports whether an address lies in currently
+retained backing storage; it does not prove that an object at that address is
+still alive.
+
+The arena benchmark compares repeated 32-byte aligned allocations and bulk
+resets against `std::pmr::monotonic_buffer_resource` using equally sized reused
+storage. Three local GCC 13.3 Release runs measured 9.15-11.08 ns/allocation
+for this instrumented arena and 2.36-2.75 ns/allocation for the standard PMR
+resource. The result is a transparent baseline, not a claim that the custom
+arena is faster.
+
 ## Build and test
 
 ```bash
@@ -378,8 +431,10 @@ Run the example and microbenchmark:
 ./build/segregated_allocator_example
 ./build/pmr_example
 ./build/concurrency_example
+./build/arena_example
 ./build/memory_pool_benchmark
 ./build/concurrency_benchmark
+./build/arena_benchmark
 ```
 
 Enable AddressSanitizer and UndefinedBehaviorSanitizer:
@@ -427,6 +482,9 @@ not a universal performance claim.
 | `SynchronizedAllocator` operation | Underlying operation plus one lock | O(1) |
 | Thread-cache hit/local free | O(1) expected, including one metadata-shard lock | O(1) |
 | Thread-cache refill/flush | O(batch size) | O(batch size) per local cache |
+| `MonotonicArena::allocate()` | O(retained chunks examined), O(1) in the current chunk | O(1), excluding growth |
+| `MonotonicArena::create<T>()` | Allocation plus construction; destructor registration is amortized O(1) | Amortized O(1) metadata for non-trivial `T` |
+| `MonotonicArena::reset()` | O(chunks + registered destructors) | O(1) |
 
 ## Limitations
 
@@ -447,3 +505,7 @@ not a universal performance claim.
   sharded lookup to every cached allocation and deallocation.
 - Thread-local caches can temporarily retain free blocks until a watermark
   flush, explicit release, or thread exit.
+- `MonotonicArena` has no individual free operation, is unsynchronized, and
+  invalidates all of its pointers on reset.
+- Arena raw allocations do not register destructors; use `create<T>()` for
+  automatic reverse-order destruction of non-trivial objects.

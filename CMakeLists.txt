@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(fixed_size_memory_pool VERSION 1.6.0 LANGUAGES CXX)
+project(fixed_size_memory_pool VERSION 1.7.0 LANGUAGES CXX)
 
 find_package(Threads REQUIRED)
 
@@ -20,12 +20,14 @@ add_library(memory_pool
   src/chunk_manager.cpp
   src/fixed_size_memory_pool.cpp
   src/memory_chunk.cpp
+  src/monotonic_arena.cpp
   src/new_delete_memory_provider.cpp
   src/pool_memory_resource.cpp
   src/segregated_allocator.cpp
   src/size_class_selector.cpp
   src/thread_cached_allocator.cpp
   src/detail/block_layout.cpp
+  src/detail/arena_chunk.cpp
   src/detail/diagnostic_state.cpp
   src/detail/memory_guard.cpp
   src/detail/statistics_tracker.cpp
@@ -74,6 +76,10 @@ add_executable(concurrency_example examples/concurrency_usage.cpp)
 target_link_libraries(concurrency_example PRIVATE memory_pool)
 memory_pool_enable_warnings(concurrency_example)
 
+add_executable(arena_example examples/arena_usage.cpp)
+target_link_libraries(arena_example PRIVATE memory_pool)
+memory_pool_enable_warnings(arena_example)
+
 add_executable(memory_pool_benchmark benchmarks/allocation_benchmark.cpp)
 target_link_libraries(memory_pool_benchmark PRIVATE memory_pool)
 memory_pool_enable_warnings(memory_pool_benchmark)
@@ -82,10 +88,15 @@ add_executable(concurrency_benchmark benchmarks/concurrency_benchmark.cpp)
 target_link_libraries(concurrency_benchmark PRIVATE memory_pool)
 memory_pool_enable_warnings(concurrency_benchmark)
 
+add_executable(arena_benchmark benchmarks/arena_benchmark.cpp)
+target_link_libraries(arena_benchmark PRIVATE memory_pool)
+memory_pool_enable_warnings(arena_benchmark)
+
 include(CTest)
 if(BUILD_TESTING)
   add_executable(memory_pool_tests
     tests/memory_pool_tests.cpp
+    tests/arena_tests.cpp
     tests/concurrency_tests.cpp
     tests/concurrency_edge_tests.cpp
     tests/fixed_size_memory_pool_tests.cpp

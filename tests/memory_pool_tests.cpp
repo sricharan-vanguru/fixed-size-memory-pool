@@ -38,6 +38,10 @@ namespace concurrency_edge_tests {
 void run(TestContext& test);
 }
 
+namespace arena_tests {
+void run(TestContext& test);
+}
+
 int main() {
     TestContext test;
     core_tests::run(test);
@@ -49,6 +53,7 @@ int main() {
     pmr_tests::run(test);
     concurrency_tests::run(test);
     concurrency_edge_tests::run(test);
+    arena_tests::run(test);
 
     if (test.failures() == 0) {
         std::cout << "All memory pool tests passed\n";
