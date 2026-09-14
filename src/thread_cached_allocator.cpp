@@ -22,9 +22,9 @@ struct ThreadCachedAllocator::Impl {
             // blocks back while the shared allocator state is still alive.
             for (auto& [id, cache] : caches) {
                 static_cast<void>(id);
-                if (const auto state = cache.state.lock()) {
+                if (const auto shared_state = cache.state.lock()) {
                     try {
-                        static_cast<void>(state->flush_bins(cache.bins));
+                        static_cast<void>(shared_state->flush_bins(cache.bins));
                     } catch (...) {
                         // Thread-local destruction cannot report exceptions.
                     }
@@ -33,25 +33,26 @@ struct ThreadCachedAllocator::Impl {
         }
 
         [[nodiscard]] LocalCache&
-        get(const std::shared_ptr<detail::ThreadCacheState>& state) {
-            auto existing = caches.find(state->id());
+        get(const std::shared_ptr<detail::ThreadCacheState>& shared_state) {
+            auto existing = caches.find(shared_state->id());
             if (existing != caches.end() && !existing->second.state.expired()) {
                 return existing->second;
             }
 
             LocalCache replacement;
-            replacement.state = state;
-            replacement.bins.resize(state->class_count());
+            replacement.state = shared_state;
+            replacement.bins.resize(shared_state->class_count());
             for (auto& bin : replacement.bins) {
                 // One extra slot permits push-then-flush at the high watermark.
-                bin.reserve(state->cache_capacity());
+                bin.reserve(shared_state->cache_capacity());
             }
 
             if (existing != caches.end()) {
                 existing->second = std::move(replacement);
                 return existing->second;
             }
-            return caches.emplace(state->id(), std::move(replacement)).first->second;
+            return caches.emplace(shared_state->id(), std::move(replacement))
+                .first->second;
         }
 
         [[nodiscard]] std::size_t release(std::uint64_t id) {
@@ -60,8 +61,8 @@ struct ThreadCachedAllocator::Impl {
                 return 0;
             }
             std::size_t released = 0;
-            if (const auto state = entry->second.state.lock()) {
-                released = state->flush_bins(entry->second.bins);
+            if (const auto shared_state = entry->second.state.lock()) {
+                released = shared_state->flush_bins(entry->second.bins);
             }
             caches.erase(entry);
             return released;
