@@ -62,58 +62,6 @@ object-lifetime helpers remain in the public header, while layout calculations,
 state tracking, canaries, poisoning, and statistics collection are private
 implementation modules.
 
-```text
-include/memory_pool/                 public API
-  fixed_size_memory_pool.hpp         allocator interface and templates
-  pool_options.hpp                   optional behavior configuration
-  pool_statistics.hpp                statistics result type
-  pool_errors.hpp                    allocator-specific exceptions
-  object_pool.hpp                    type-safe facade for one object type
-  pool_ptr.hpp                       RAII pointer and pool-aware deleter
-  memory_provider.hpp                backing-storage provider contract
-  new_delete_memory_provider.hpp     default provider
-  memory_chunk.hpp                   one stable block-storage allocation
-  chunk_manager.hpp                  growth, lookup, and reclamation
-  chunk_policies.hpp                 growth and reclamation configuration
-  exhaustion_policies.hpp            compile-time exhaustion strategies
-  chunk_pool.hpp                     policy-based growing pool facade
-  size_class_selector.hpp            size/alignment routing rules
-  segregated_allocator_options.hpp   multi-size configuration
-  segregated_allocator_statistics.hpp per-class statistics
-  segregated_allocator.hpp           mixed-size allocator facade
-  pool_memory_resource.hpp            standard PMR adapter
-  synchronized_allocator.hpp          lock-policy synchronization decorator
-  concurrency_options.hpp             thread-cache watermarks and batch size
-  concurrency_statistics.hpp          concurrent allocator counters
-  thread_cached_allocator.hpp         cached shared allocator facade
-
-src/                                 compiled implementation
-  chunk_manager.cpp                  multi-chunk ownership and growth
-  fixed_size_memory_pool.cpp         storage and free-list coordination
-  memory_chunk.cpp                   per-chunk block allocation
-  new_delete_memory_provider.cpp     new/delete backing storage
-  size_class_selector.cpp            smallest-class selection
-  segregated_allocator.cpp           allocation/deallocation routing
-  pool_memory_resource.cpp            PMR and upstream adaptation
-  thread_cached_allocator.cpp         local caches and remote-free routing
-  detail/block_layout.*              alignment and overflow-safe layout
-  detail/diagnostic_state.*          block state and integrity checks
-  detail/memory_guard.*              poisoning and canaries
-  detail/statistics_tracker.*        optional counter updates
-  detail/thread_cache_state.*        central locking and owner metadata
-
-tests/
-  fixed_size_memory_pool_tests.cpp   core behavior and object lifetime
-  diagnostics_tests.cpp              misuse and corruption detection
-  object_pool_tests.cpp              typed construction and RAII ownership
-  phase3_tests.cpp                   providers, chunks, growth, and policies
-  segregated_allocator_tests.cpp     mixed-size routing and fallback
-  pmr_tests.cpp                      standard-container integration
-  concurrency_tests.cpp              shared, cached, and remote-free stress tests
-  concurrency_edge_tests.cpp         concurrency boundaries and failure races
-  statistics_tests.cpp               counter behavior
-```
-
 Internal modules are not part of the supported public API. Applications should
 include headers only from `include/memory_pool` and link the `memory_pool` CMake
 target.
